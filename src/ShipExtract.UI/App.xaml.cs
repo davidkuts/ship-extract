@@ -98,6 +98,7 @@ public partial class App : System.Windows.Application
                 services.AddTransient<MainViewModel>();
                 services.AddTransient<SettingsViewModel>();
                 services.AddTransient<StatusBarViewModel>();
+                services.AddTransient<HistoryViewModel>();
 
                 // Views
                 services.AddTransient<MainWindow>();

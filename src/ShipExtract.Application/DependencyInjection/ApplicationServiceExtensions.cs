@@ -21,7 +21,8 @@ public static class ApplicationServiceExtensions
             new BatchProcessingService(
                 sp.GetRequiredService<ExtractionPipeline>(),
                 sp.GetRequiredService<ILoggingService>(),
-                maxConcurrency));
+                maxConcurrency,
+                sp.GetService<IBatchHistoryService>()));
         return services;
     }
 }

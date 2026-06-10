@@ -363,6 +363,48 @@
                     </StackPanel>
                 </Border>
 
+                <!-- History -->
+                <TextBlock Text="Batch History"
+                           FontSize="14" FontWeight="Bold"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           Margin="0,16,0,8"/>
+
+                <Border Style="{StaticResource CardBorder}" Padding="16">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0"
+                                       Text="Stored batches:"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       FontSize="12" Margin="0,0,8,4"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1"
+                                       Text="{Binding HistoryEntryCount, Mode=OneWay}"
+                                       FontSize="12" FontWeight="SemiBold"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0"
+                                       Text="History directory:"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       FontSize="12" Margin="0,0,8,0"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1"
+                                       Text="{Binding HistoryDirectory, Mode=OneWay}"
+                                       FontSize="12"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </Grid>
+                        <Button Content="Clear All History"
+                                Style="{StaticResource SecondaryButton}"
+                                HorizontalAlignment="Left"
+                                Padding="10,5"
+                                Foreground="{StaticResource AccentBrush}"
+                                Command="{Binding ClearHistoryCommand}"/>
+                    </StackPanel>
+                </Border>
+
             </StackPanel>
         </ScrollViewer>
     </DockPanel>

@@ -361,6 +361,58 @@ public sealed partial class MainViewModel : ObservableObject
             Process.Start("explorer.exe", SelectedOutputDirectory);
     }
 
+    /// <summary>
+    /// Restores a previously completed batch from history into the queue and result view.
+    /// </summary>
+    public void LoadFromHistory(Domain.Models.BatchHistoryEntry entry)
+    {
+        if (IsProcessing) return;
+
+        QueueItems.Clear();
+        _failureCount = 0;
+        HasResults    = false;
+        StatusMessage = string.Empty;
+        BatchSummaryText = string.Empty;
+
+        // Reconstruct a BatchJob so export commands work
+        var job = new BatchJob
+        {
+            FilePaths   = entry.Results.Select(r => r.SourceFilePath).ToList(),
+            CreatedAt   = entry.CompletedAt - TimeSpan.FromSeconds(entry.TotalDurationSeconds),
+            Status      = Domain.Enums.BatchStatus.Completed,
+            CompletedAt = entry.CompletedAt,
+            SuccessCount = entry.SuccessCount,
+            FailureCount = entry.FailureCount
+        };
+        job.Results.AddRange(entry.Results);
+        job.ProcessedFiles = entry.TotalFiles;
+        _lastBatchJob = job;
+
+        foreach (var result in entry.Results)
+        {
+            var item = new QueueItemViewModel(result.SourceFilePath);
+            item.UpdateFromResult(result);
+            QueueItems.Add(item);
+        }
+
+        TotalFiles     = QueueItems.Count;
+        ProcessedFiles = TotalFiles;
+        _failureCount  = entry.FailureCount;
+        HasResults     = true;
+        StatusMessage  = $"Loaded from history: {entry.SuccessCount} succeeded, {entry.FailureCount} failed.";
+
+        var totalSecs = entry.TotalDurationSeconds;
+        var avgSecs   = TotalFiles > 0 ? totalSecs / TotalFiles : 0;
+        BatchSummaryText = TotalFiles == 0
+            ? string.Empty
+            : $"{entry.SuccessCount} succeeded \u00B7 {entry.FailureCount} failed \u00B7 {totalSecs:F0}s total \u00B7 avg {avgSecs:F1}s/file";
+
+        OnPropertyChanged(nameof(WindowTitle));
+        StartProcessingCommand.NotifyCanExecuteChanged();
+        ExportCsvCommand.NotifyCanExecuteChanged();
+        ExportExcelCommand.NotifyCanExecuteChanged();
+    }
+
     /// <summary>Gets the processing result for the currently selected queue item.</summary>
     public ProcessingResult? SelectedResult => SelectedQueueItem?.LastResult;
 

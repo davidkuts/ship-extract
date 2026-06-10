@@ -3,12 +3,13 @@ using Anthropic.SDK;
 using Microsoft.Extensions.DependencyInjection;
 using ShipExtract.Domain.Interfaces;
 using ShipExtract.Infrastructure.AI;
+using ShipExtract.Infrastructure.Carriers;
 using ShipExtract.Infrastructure.Export;
+using ShipExtract.Infrastructure.History;
 using ShipExtract.Infrastructure.Logging;
 using ShipExtract.Infrastructure.Ocr;
 using ShipExtract.Infrastructure.Pdf;
 using ShipExtract.Infrastructure.Settings;
-using ShipExtract.Infrastructure.Carriers;
 using ShipExtract.Infrastructure.TextProcessing;
 
 namespace ShipExtract.Infrastructure.DependencyInjection;
@@ -86,6 +87,10 @@ public static class InfrastructureServiceExtensions
 
         // Carrier detection
         services.AddSingleton<ICarrierDetector, CarrierDetector>();
+
+        // Batch history
+        services.AddSingleton<IBatchHistoryService>(_ =>
+            new BatchHistoryService(appSettings.HistoryDirectory));
 
         // Text pre-processing (order determines execution sequence)
         services.AddSingleton<ITextPreProcessor, FormAnnotationCleaner>();

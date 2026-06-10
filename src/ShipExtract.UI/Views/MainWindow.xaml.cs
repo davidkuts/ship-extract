@@ -1,4 +1,5 @@
 using System.Windows;
+using ShipExtract.Domain.Models;
 using ShipExtract.Infrastructure.Settings;
 using ShipExtract.UI.Controls;
 using ShipExtract.UI.DependencyInjection;
@@ -64,6 +65,19 @@ public partial class MainWindow : Window
     private void AboutButton_Click(object sender, RoutedEventArgs e)
     {
         new AboutWindow { Owner = this }.ShowDialog();
+    }
+
+    private void HistoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        var historyVm = ServiceLocator.Get<HistoryViewModel>();
+        var win = new HistoryWindow(historyVm) { Owner = this };
+        win.BatchLoaded += OnHistoryBatchLoaded;
+        win.ShowDialog();
+    }
+
+    private void OnHistoryBatchLoaded(BatchHistoryEntry entry)
+    {
+        _vm.LoadFromHistory(entry);
     }
 
     private void CheckOllamaButton_Click(object sender, RoutedEventArgs e)

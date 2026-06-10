@@ -61,10 +61,21 @@ public sealed class SettingsService : ISettingsService
             }
         }
 
+        // Backfill any directory field that was absent from an older settings.json.
+        // Properties missing from the JSON file deserialise to string.Empty (the C# default),
+        // NOT to the value returned by BuildDefaults(), so we apply the same defaults here.
+        if (string.IsNullOrWhiteSpace(settings.LogDirectory))
+            settings.LogDirectory = Path.Combine(_appDataRoot, "logs");
+        if (string.IsNullOrWhiteSpace(settings.TessDataDirectory))
+            settings.TessDataDirectory = Path.Combine(_appDataRoot, "tessdata");
+        if (string.IsNullOrWhiteSpace(settings.HistoryDirectory))
+            settings.HistoryDirectory = Path.Combine(_appDataRoot, "history");
+
         // Expand any remaining environment tokens
-        settings.LogDirectory          = Expand(settings.LogDirectory);
-        settings.TessDataDirectory     = Expand(settings.TessDataDirectory);
+        settings.LogDirectory           = Expand(settings.LogDirectory);
+        settings.TessDataDirectory      = Expand(settings.TessDataDirectory);
         settings.DefaultOutputDirectory = Expand(settings.DefaultOutputDirectory);
+        settings.HistoryDirectory       = Expand(settings.HistoryDirectory);
 
         return settings;
     }
@@ -84,7 +95,8 @@ public sealed class SettingsService : ISettingsService
             LogDirectory           = settings.LogDirectory,
             AiProvider             = settings.AiProvider,
             OllamaBaseUrl          = settings.OllamaBaseUrl,
-            OllamaModel            = settings.OllamaModel
+            OllamaModel            = settings.OllamaModel,
+            HistoryDirectory       = settings.HistoryDirectory
         };
         var json = JsonSerializer.Serialize(toSave, JsonOptions);
         File.WriteAllText(_settingsPath, json);
@@ -95,7 +107,8 @@ public sealed class SettingsService : ISettingsService
         TessDataDirectory      = Path.Combine(_appDataRoot, "tessdata"),
         DefaultOutputDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "ShipExtract"),
-        LogDirectory           = Path.Combine(_appDataRoot, "logs")
+        LogDirectory           = Path.Combine(_appDataRoot, "logs"),
+        HistoryDirectory       = Path.Combine(_appDataRoot, "history")
     };
 
     private static string Expand(string? value) =>
