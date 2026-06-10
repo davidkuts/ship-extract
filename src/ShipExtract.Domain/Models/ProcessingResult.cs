@@ -31,4 +31,13 @@ public sealed class ProcessingResult
 
     /// <summary>Raw JSON string returned by the AI service, useful for debugging.</summary>
     public string? RawAiResponse { get; set; }
+
+    /// <summary>Raw text extracted from the document (native PDF text or OCR output), truncated to 50,000 characters.</summary>
+    public string? ExtractedRawText { get; set; }
+
+    /// <summary>Report describing what the text pre-processing pipeline removed before AI extraction.</summary>
+    public PreProcessingReport? PreProcessingReport { get; set; }
+
+    /// <summary>Carrier automatically detected from the document text before AI extraction.</summary>
+    public CarrierType DetectedCarrier { get; set; } = CarrierType.Unknown;
 }

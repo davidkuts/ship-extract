@@ -25,17 +25,25 @@ public sealed class PdfPigParser : IPdfParser
     {
         ct.ThrowIfCancellationRequested();
 
-        using var document = PdfDocument.Open(filePath);
-        var pages = new List<string>();
-
-        foreach (var page in document.GetPages())
+        try
         {
-            ct.ThrowIfCancellationRequested();
-            var words = page.GetWords();
-            pages.Add(string.Join(" ", words.Select(w => w.Text)));
-        }
+            using var document = PdfDocument.Open(filePath);
+            var pages = new List<string>();
 
-        return Task.FromResult(string.Join(Environment.NewLine, pages));
+            foreach (var page in document.GetPages())
+            {
+                ct.ThrowIfCancellationRequested();
+                var words = page.GetWords();
+                pages.Add(string.Join(" ", words.Select(w => w.Text)));
+            }
+
+            return Task.FromResult(string.Join(Environment.NewLine, pages));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new InvalidOperationException(
+                "PDF could not be opened. It may be password-protected or corrupt.", ex);
+        }
     }
 
     /// <inheritdoc/>
@@ -43,15 +51,23 @@ public sealed class PdfPigParser : IPdfParser
     {
         ct.ThrowIfCancellationRequested();
 
-        using var document = PdfDocument.Open(filePath);
-        foreach (var page in document.GetPages())
+        try
         {
-            ct.ThrowIfCancellationRequested();
-            if (page.GetWords().Any())
-                return Task.FromResult(true);
-        }
+            using var document = PdfDocument.Open(filePath);
+            foreach (var page in document.GetPages())
+            {
+                ct.ThrowIfCancellationRequested();
+                if (page.GetWords().Any())
+                    return Task.FromResult(true);
+            }
 
-        return Task.FromResult(false);
+            return Task.FromResult(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new InvalidOperationException(
+                "PDF could not be opened. It may be password-protected or corrupt.", ex);
+        }
     }
 
     /// <inheritdoc/>
@@ -64,7 +80,7 @@ public sealed class PdfPigParser : IPdfParser
         {
             return Task.FromResult(RenderWithDocnet(filePath, dpi, ct));
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogWarning(
                 "Page rendering failed for {FilePath} — returning empty list. Reason: {Reason}",

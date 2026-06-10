@@ -4,3 +4,7 @@ obj/
 *.user
 *.suo
 .DS_Store
+publish/
+**/launchSettings.json
+**/bin/
+**/obj/

@@ -106,4 +106,7 @@ public sealed class ShipmentRecord
 
     /// <summary>AI confidence score for the extraction result, in the range 0.0–1.0.</summary>
     public double ConfidenceScore { get; set; }
+
+    /// <summary>Carrier automatically detected from the document text before AI extraction.</summary>
+    public CarrierType DetectedCarrier { get; set; } = CarrierType.Unknown;
 }

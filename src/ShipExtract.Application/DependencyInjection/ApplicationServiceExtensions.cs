@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using ShipExtract.Application.Pipelines;
 using ShipExtract.Application.Services;
+using ShipExtract.Domain.Interfaces;
 
 namespace ShipExtract.Application.DependencyInjection;
 
@@ -13,10 +14,14 @@ public static class ApplicationServiceExtensions
     /// </summary>
     /// <param name="services">The DI service collection to configure.</param>
     /// <returns>The same <paramref name="services"/> instance for chaining.</returns>
-    public static IServiceCollection AddApplicationServices(this IServiceCollection services)
+    public static IServiceCollection AddApplicationServices(this IServiceCollection services, int maxConcurrency)
     {
         services.AddScoped<ExtractionPipeline>();
-        services.AddScoped<IBatchProcessingService, BatchProcessingService>();
+        services.AddScoped<IBatchProcessingService>(sp =>
+            new BatchProcessingService(
+                sp.GetRequiredService<ExtractionPipeline>(),
+                sp.GetRequiredService<ILoggingService>(),
+                maxConcurrency));
         return services;
     }
 }

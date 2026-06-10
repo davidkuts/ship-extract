@@ -149,13 +149,12 @@ public sealed class ExtractionPipelineTests
 
         try
         {
-            // Record with no bill numbers — will fail validation
+            // Record with a negative DeclaredValue — hard validation error
             var invalidRecord = new ShipmentRecord
             {
-                TrackingNumber  = null,
-                HouseBillNumber  = null,
-                MasterBillNumber = null,
+                TrackingNumber  = "TRACK123",
                 ConsigneeName   = "Test Corp",
+                DeclaredValue   = -1m,
                 ConfidenceScore = 0.8
             };
 

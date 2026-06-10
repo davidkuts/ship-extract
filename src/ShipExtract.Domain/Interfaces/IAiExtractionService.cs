@@ -26,4 +26,16 @@ public interface IAiExtractionService
     /// <param name="ct">Cancellation token.</param>
     /// <returns>An <see cref="AiExtractionResponse"/> containing the structured data and metadata.</returns>
     Task<AiExtractionResponse> ExtractAsync(string rawText, DocumentType hint = DocumentType.Unknown, CancellationToken ct = default);
+
+    /// <summary>
+    /// Carrier-aware overload (v1.1). Implementations use <paramref name="carrier"/> to apply
+    /// carrier-specific prompt hints. The default implementation ignores carrier and delegates
+    /// to <see cref="ExtractAsync(string,DocumentType,CancellationToken)"/> for backward compatibility.
+    /// </summary>
+    Task<AiExtractionResponse> ExtractAsync(
+        string rawText,
+        DocumentType hint,
+        CarrierType carrier,
+        CancellationToken ct = default) =>
+        ExtractAsync(rawText, hint, ct);
 }

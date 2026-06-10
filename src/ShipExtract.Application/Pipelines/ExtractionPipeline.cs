@@ -4,6 +4,7 @@ using ShipExtract.Domain.Interfaces;
 using ShipExtract.Domain.Models;
 using ShipExtract.Domain.Validators;
 
+
 namespace ShipExtract.Application.Pipelines;
 
 /// <summary>
@@ -15,6 +16,8 @@ public sealed class ExtractionPipeline
     private readonly IPdfParser _pdfParser;
     private readonly IOcrService _ocrService;
     private readonly IAiExtractionService _aiService;
+    private readonly ITextPreProcessingPipeline? _preProcessingPipeline;
+    private readonly ICarrierDetector? _carrierDetector;
     private readonly ILoggingService _logger;
 
     /// <summary>Initialises a new instance of <see cref="ExtractionPipeline"/>.</summary>
@@ -22,12 +25,16 @@ public sealed class ExtractionPipeline
         IPdfParser pdfParser,
         IOcrService ocrService,
         IAiExtractionService aiService,
-        ILoggingService logger)
+        ILoggingService logger,
+        ITextPreProcessingPipeline? preProcessingPipeline = null,
+        ICarrierDetector? carrierDetector = null)
     {
-        _pdfParser = pdfParser;
-        _ocrService = ocrService;
-        _aiService = aiService;
-        _logger = logger;
+        _pdfParser             = pdfParser;
+        _ocrService            = ocrService;
+        _aiService             = aiService;
+        _logger                = logger;
+        _preProcessingPipeline = preProcessingPipeline;
+        _carrierDetector       = carrierDetector;
     }
 
     /// <summary>
@@ -60,17 +67,62 @@ public sealed class ExtractionPipeline
 
             // Step 2 — text extraction
             string text;
-            var hasSelectableText = await _pdfParser.HasSelectableTextAsync(filePath, ct);
+            bool hasSelectableText;
+
+            try
+            {
+                hasSelectableText = await _pdfParser.HasSelectableTextAsync(filePath, ct);
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("PDF could not be opened"))
+            {
+                result.Status = ProcessingStatus.Failed;
+                result.Errors.Add(new ExtractionError
+                {
+                    Code = ExtractionErrorCode.UnsupportedFormat,
+                    Message = ex.Message,
+                    Exception = ex
+                });
+                return result;
+            }
 
             if (hasSelectableText)
             {
                 _logger.LogDebug("PDF has selectable text, extracting directly: {FilePath}", filePath);
-                text = await _pdfParser.ExtractTextAsync(filePath, ct);
+                try
+                {
+                    text = await _pdfParser.ExtractTextAsync(filePath, ct);
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("PDF could not be opened"))
+                {
+                    result.Status = ProcessingStatus.Failed;
+                    result.Errors.Add(new ExtractionError
+                    {
+                        Code = ExtractionErrorCode.UnsupportedFormat,
+                        Message = ex.Message,
+                        Exception = ex
+                    });
+                    return result;
+                }
             }
             else
             {
                 _logger.LogDebug("PDF lacks selectable text, falling back to OCR: {FilePath}", filePath);
-                var pageImages = await _pdfParser.RenderPagesToImagesAsync(filePath, 200, ct);
+                IReadOnlyList<byte[]> pageImages;
+                try
+                {
+                    pageImages = await _pdfParser.RenderPagesToImagesAsync(filePath, 200, ct);
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("PDF could not be opened"))
+                {
+                    result.Status = ProcessingStatus.Failed;
+                    result.Errors.Add(new ExtractionError
+                    {
+                        Code = ExtractionErrorCode.UnsupportedFormat,
+                        Message = ex.Message,
+                        Exception = ex
+                    });
+                    return result;
+                }
                 text = await _ocrService.RecognizeTextFromPagesAsync(pageImages, ct);
                 result.UsedOcrFallback = true;
             }
@@ -87,16 +139,46 @@ public sealed class ExtractionPipeline
                 return result;
             }
 
-            // Step 4 — AI extraction
-            var aiResponse = await _aiService.ExtractAsync(text, DocumentType.Unknown, ct);
+            // Store ORIGINAL raw text for debugging (truncated to 50 k chars).
+            result.ExtractedRawText = text.Length > 50000
+                ? text[..50000] + "\n\n[Truncated — showing first 50,000 characters]"
+                : text;
+
+            // Step 2.5 — Pre-process: clean the text before sending to AI (when available).
+            string textForAi;
+            if (_preProcessingPipeline is not null)
+            {
+                var (cleaned, preProcessingReport) = _preProcessingPipeline.Process(text);
+                result.PreProcessingReport = preProcessingReport;
+                textForAi = cleaned;
+            }
+            else
+            {
+                textForAi = text;
+            }
+
+            // Step 2.6 — Carrier detection
+            var detectedCarrier = _carrierDetector?.Detect(textForAi) ?? CarrierType.Unknown;
+            result.DetectedCarrier = detectedCarrier;
+            _logger.LogInformation("Carrier detected: {Carrier} for {File}",
+                detectedCarrier, Path.GetFileName(filePath));
+
+            // Step 4 — AI extraction (with one transient retry)
+            var aiResponse = await CallAiWithRetryAsync(textForAi, detectedCarrier, ct);
             result.RawAiResponse = aiResponse.RawJson;
 
             // Steps 5 & 6 — handle AI response
             if (aiResponse.Success && aiResponse.Record is not null)
             {
                 var record = aiResponse.Record;
-                record.SourceFileName = Path.GetFileName(filePath);
-                record.ConfidenceScore = aiResponse.ConfidenceScore;
+                record.SourceFileName   = Path.GetFileName(filePath);
+                record.ConfidenceScore  = aiResponse.ConfidenceScore;
+                record.DetectedCarrier  = detectedCarrier;
+
+                // Fall back to detected carrier name if the AI left CarrierName empty
+                if (string.IsNullOrWhiteSpace(record.CarrierName) && detectedCarrier != CarrierType.Unknown)
+                    record.CarrierName = detectedCarrier.ToString();
+
                 result.Record = record;
 
                 var validation = ShipmentRecordValidator.Validate(record);
@@ -111,7 +193,7 @@ public sealed class ExtractionPipeline
                             Message = error
                         });
                     }
-                    _logger.LogWarning("Extraction for {FilePath} had validation issues: {Errors}",
+                    _logger.LogWarning("Extraction for {FilePath} had validation errors: {Errors}",
                         filePath, string.Join("; ", validation.Errors));
                 }
                 else
@@ -119,6 +201,11 @@ public sealed class ExtractionPipeline
                     result.Status = ProcessingStatus.Succeeded;
                     _logger.LogInformation("Extraction succeeded for {FilePath} (confidence {Score:P0})",
                         filePath, aiResponse.ConfidenceScore);
+                    if (validation.HasWarnings)
+                    {
+                        _logger.LogDebug("Extraction warnings for {FilePath}: {Warnings}",
+                            filePath, string.Join("; ", validation.Warnings));
+                    }
                 }
             }
             else
@@ -129,8 +216,7 @@ public sealed class ExtractionPipeline
                     Code = ExtractionErrorCode.AiCallFailure,
                     Message = aiResponse.ErrorMessage ?? "AI extraction returned no data."
                 });
-                _logger.LogError("AI extraction failed for {FilePath}: {Error}",
-                    null, filePath, aiResponse.ErrorMessage);
+                _logger.LogError($"AI extraction failed for {filePath}: {aiResponse.ErrorMessage}");
             }
         }
         catch (OperationCanceledException)
@@ -163,4 +249,29 @@ public sealed class ExtractionPipeline
 
         return result;
     }
+
+    private async Task<Domain.Interfaces.AiExtractionResponse> CallAiWithRetryAsync(
+        string text, CarrierType carrier, CancellationToken ct)
+    {
+        try
+        {
+            // Prefer carrier-aware overload; fall back to base overload when the
+            // carrier-aware version is not set up (e.g. existing unit-test mocks).
+            var response = await _aiService.ExtractAsync(text, Domain.Enums.DocumentType.Unknown, carrier, ct);
+            return response ?? await _aiService.ExtractAsync(text, Domain.Enums.DocumentType.Unknown, ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested && IsTransientAiError(ex.Message))
+        {
+            _logger.LogWarning("Transient AI error — retrying once after 5 s. Reason: {Reason}", ex.Message);
+            await Task.Delay(5000, ct);
+            var response = await _aiService.ExtractAsync(text, Domain.Enums.DocumentType.Unknown, carrier, ct);
+            return response ?? await _aiService.ExtractAsync(text, Domain.Enums.DocumentType.Unknown, ct);
+        }
+    }
+
+    private static bool IsTransientAiError(string message) =>
+        message.Contains("rate",       StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("529",        StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("overloaded", StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("timeout",    StringComparison.OrdinalIgnoreCase);
 }

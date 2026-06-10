@@ -26,17 +26,19 @@ public sealed class ShipmentRecordValidatorTests
     }
 
     [Fact]
-    public void Validate_AllBillNumbersNullOrEmpty_ReturnsErrorMentioningBillNumber()
+    public void Validate_AllBillNumbersNullOrEmpty_AddsWarningButRemainsValid()
     {
         var record = CreateValidRecord();
-        record.TrackingNumber  = null;
+        record.TrackingNumber   = null;
         record.HouseBillNumber  = null;
         record.MasterBillNumber = null;
 
         var result = ShipmentRecordValidator.Validate(record);
 
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().ContainMatch("*TrackingNumber*");
+        result.IsValid.Should().BeTrue();
+        result.Errors.Should().BeEmpty();
+        result.HasWarnings.Should().BeTrue();
+        result.Warnings.Should().ContainMatch("*TrackingNumber*");
     }
 
     [Fact]

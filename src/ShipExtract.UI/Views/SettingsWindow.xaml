@@ -1,0 +1,369 @@
+<Window x:Class="ShipExtract.UI.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:ShipExtract.UI.Converters"
+        Title="Settings &#x2014; ShipExtract"
+        Width="500" Height="680"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource SurfaceBrush}">
+
+    <Window.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
+        <converters:NullToVisibilityConverter x:Key="NullToVisibility"/>
+    </Window.Resources>
+
+    <DockPanel Margin="20">
+
+        <!-- Buttons row pinned to bottom -->
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Vertical"
+                    HorizontalAlignment="Right"
+                    Margin="0,16,0,0">
+            <!-- Saved message -->
+            <TextBlock Text="{Binding SavedMessage, Mode=OneWay}"
+                       Foreground="{StaticResource SuccessBrush}"
+                       FontSize="12"
+                       HorizontalAlignment="Right"
+                       Margin="0,0,0,4"
+                       Visibility="{Binding HasSavedMessage, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Save"
+                        Style="{StaticResource PrimaryButton}"
+                        Width="90"
+                        Command="{Binding SaveSettingsCommand}"
+                        Click="SaveButton_Click"/>
+                <Button Content="Cancel"
+                        Style="{StaticResource SecondaryButton}"
+                        Width="90"
+                        Margin="8,0,0,0"
+                        Click="CancelButton_Click"/>
+            </StackPanel>
+        </StackPanel>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!-- AI Configuration -->
+                <TextBlock Text="AI Provider" FontSize="14" FontWeight="Bold"
+                           Foreground="{StaticResource PrimaryBrush}" Margin="0,0,0,8"/>
+
+                <!-- Provider selection cards -->
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Anthropic card -->
+                    <Border Grid.Column="0" Padding="12"
+                            Cursor="Hand" MouseLeftButtonUp="AnthropicCard_Click"
+                            CornerRadius="6" BorderThickness="1">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="{StaticResource SurfaceDarkBrush}"/>
+                                <Setter Property="Background" Value="White"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsAnthropicSelected, Mode=OneWay}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel>
+                            <RadioButton GroupName="Provider" IsChecked="{Binding IsAnthropicSelected, Mode=OneWay}"
+                                         Margin="0,0,0,4" IsHitTestVisible="False"/>
+                            <TextBlock Text="Anthropic Claude" FontWeight="Bold" FontSize="13"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBlock Text="Highest accuracy" FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,2"/>
+                            <TextBlock Text="~$0.002 per document" FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <Border Background="{StaticResource AccentBrush}" CornerRadius="3"
+                                    Padding="4,2" Margin="0,6,0,0" HorizontalAlignment="Left">
+                                <TextBlock Text="Production" FontSize="10" Foreground="White" FontWeight="SemiBold"/>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Ollama card -->
+                    <Border Grid.Column="2" Padding="12"
+                            Cursor="Hand" MouseLeftButtonUp="OllamaCard_Click"
+                            CornerRadius="6" BorderThickness="1">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="{StaticResource SurfaceDarkBrush}"/>
+                                <Setter Property="Background" Value="White"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsOllamaSelected, Mode=OneWay}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel>
+                            <RadioButton GroupName="Provider" IsChecked="{Binding IsOllamaSelected, Mode=OneWay}"
+                                         Margin="0,0,0,4" IsHitTestVisible="False"/>
+                            <TextBlock Text="Ollama (Local)" FontWeight="Bold" FontSize="13"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBlock Text="Free · Private · Offline" FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,2"/>
+                            <TextBlock Text="Requires local install" FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <Border Background="{StaticResource SuccessBrush}" CornerRadius="3"
+                                    Padding="4,2" Margin="0,6,0,0" HorizontalAlignment="Left">
+                                <TextBlock Text="Free to start" FontSize="10" Foreground="White" FontWeight="SemiBold"/>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- Anthropic settings (shown only when Anthropic selected) -->
+                <Border Style="{StaticResource CardBorder}" Padding="16" Margin="0,0,0,12"
+                        Visibility="{Binding IsAnthropicSelected, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+
+                        <!-- Enhanced API Key section -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.ColumnSpan="2"
+                                       Text="Anthropic API Key"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       FontSize="12" Margin="0,0,0,4"/>
+
+                            <!-- Password input (hidden by default) -->
+                            <PasswordBox x:Name="ApiKeyBox"
+                                         Grid.Row="1" Grid.Column="0"
+                                         PasswordChanged="ApiKeyBox_PasswordChanged"
+                                         Height="32" Padding="8,4"
+                                         BorderBrush="{StaticResource SurfaceDarkBrush}"/>
+                            <!-- Reveal input (shown when toggled) -->
+                            <TextBox x:Name="ApiKeyRevealBox"
+                                     Grid.Row="1" Grid.Column="0"
+                                     TextChanged="ApiKeyRevealBox_TextChanged"
+                                     Height="32" Padding="8,4"
+                                     BorderBrush="{StaticResource SurfaceDarkBrush}"
+                                     Visibility="Collapsed"/>
+                            <Button Grid.Row="1" Grid.Column="1"
+                                    x:Name="ShowHideButton"
+                                    Content="Show"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Margin="6,0,0,0" Padding="8,6"
+                                    Click="ShowHideApiKey_Click"/>
+
+                            <!-- Status indicator -->
+                            <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,6,0,0">
+                                <TextBlock Text="&#x2713; API key saved in Windows Credential Manager"
+                                           Foreground="{StaticResource SuccessBrush}" FontSize="11"
+                                           Visibility="{Binding HasApiKey, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
+                                <TextBlock Text="&#x2717; No API key stored"
+                                           Foreground="{StaticResource ErrorBrush}" FontSize="11"
+                                           Visibility="{Binding HasApiKey, Mode=OneWay, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
+                            </StackPanel>
+
+                            <!-- Test connection row -->
+                            <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button Content="Test Connection"
+                                        Style="{StaticResource SecondaryButton}"
+                                        Padding="10,5"
+                                        Command="{Binding TestConnectionCommand}"/>
+                                <TextBlock Text="Testing..."
+                                           FontSize="12" Margin="10,0,0,0" VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Visibility="{Binding IsTestingConnection, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
+                                <TextBlock Text="{Binding TestResultMessage, Mode=OneWay}"
+                                           FontSize="12" Margin="10,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding TestResultIsSuccess, Mode=OneWay}" Value="False">
+                                                    <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="Model" Margin="0,12,0,4"
+                                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+                        <TextBlock Text="{Binding ModelName}"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontFamily="Consolas" FontSize="12"/>
+
+                        <!-- Danger Zone -->
+                        <Separator Margin="0,12,0,12" Background="{StaticResource SurfaceDarkBrush}"/>
+                        <TextBlock Text="Danger Zone" FontSize="12" FontWeight="Bold"
+                                   Foreground="{StaticResource ErrorBrush}" Margin="0,0,0,8"/>
+                        <Button Content="Clear API Key"
+                                Style="{StaticResource SecondaryButton}"
+                                HorizontalAlignment="Left"
+                                Padding="10,5"
+                                Foreground="{StaticResource ErrorBrush}"
+                                BorderBrush="{StaticResource ErrorBrush}"
+                                Command="{Binding ClearApiKeyCommand}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Ollama settings (shown only when Ollama selected) -->
+                <Border Style="{StaticResource CardBorder}" Padding="16" Margin="0,0,0,12"
+                        Visibility="{Binding IsOllamaSelected, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Text="Base URL" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        <TextBox Text="{Binding OllamaBaseUrl, UpdateSourceTrigger=PropertyChanged}"
+                                 Height="32" Padding="8,4" BorderBrush="{StaticResource SurfaceDarkBrush}"
+                                 Margin="0,0,0,10"/>
+
+                        <TextBlock Text="Model" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        <ComboBox IsEditable="True"
+                                  Text="{Binding OllamaModel, UpdateSourceTrigger=PropertyChanged}"
+                                  ItemsSource="{Binding OllamaAvailableModels, Mode=OneWay}"
+                                  Height="32" Margin="0,0,0,10"/>
+
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="Check Status"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Padding="10,5"
+                                    Command="{Binding CheckOllamaStatusCommand}"/>
+                            <StackPanel Grid.Column="1" Orientation="Vertical" Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding OllamaStatusText, Mode=OneWay}" FontSize="12">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding OllamaIsRunning, Mode=OneWay}" Value="False">
+                                                    <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="{Binding OllamaModelStatusText, Mode=OneWay}" FontSize="11"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0"
+                                           Visibility="{Binding OllamaModelStatusText, Mode=OneWay, Converter={StaticResource NullToVisibility}}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Setup instructions (shown when not running) -->
+                        <Border Background="{StaticResource SurfaceBrush}"
+                                CornerRadius="4" Padding="12" Margin="0,4,0,0"
+                                Visibility="{Binding OllamaIsRunning, Mode=OneWay, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
+                            <StackPanel>
+                                <TextBlock Text="To use Ollama:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,6"/>
+                                <TextBlock Text="1. Download and install from ollama.com" FontSize="11" Margin="0,0,0,2"/>
+                                <TextBlock Text="2. Run: ollama serve" FontSize="11" FontFamily="Consolas" Margin="0,0,0,2"/>
+                                <TextBlock Text="3. Pull a model:" FontSize="11" Margin="0,0,0,2"/>
+                                <TextBox Text="ollama pull llama3.1" IsReadOnly="True"
+                                         FontFamily="Consolas" FontSize="11"
+                                         Background="{StaticResource SurfaceDarkBrush}"
+                                         BorderThickness="0" Padding="6,3" Margin="0,0,0,8"/>
+                                <Button Content="Download Ollama &#x2192;"
+                                        Style="{StaticResource LinkButton}"
+                                        HorizontalAlignment="Left"
+                                        Click="DownloadOllama_Click"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- OCR Configuration -->
+                <TextBlock Text="OCR Configuration"
+                           FontSize="14" FontWeight="Bold"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           Margin="0,0,0,8"/>
+
+                <Border Style="{StaticResource CardBorder}" Padding="16" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Tesseract Data Path"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="12" Margin="0,0,0,4"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding TessDataPath, UpdateSourceTrigger=PropertyChanged}"
+                                     Height="32" Padding="8,4"
+                                     BorderBrush="{StaticResource SurfaceDarkBrush}"/>
+                            <Button Grid.Column="1" Content="Browse"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Margin="8,0,0,0" Padding="10,6"
+                                    Command="{Binding BrowseTessDataCommand}"/>
+                        </Grid>
+                        <!-- TessData status -->
+                        <TextBlock Text="{Binding TessDataStatusText, Mode=OneWay}"
+                                   Margin="0,6,0,0" FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{StaticResource SuccessBrush}"
+                                   Visibility="{Binding TessDataExists, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
+                        <TextBlock Text="{Binding TessDataStatusText, Mode=OneWay}"
+                                   Margin="0,6,0,0" FontSize="11"
+                                   Foreground="{StaticResource WarningBrush}"
+                                   Visibility="{Binding TessDataExists, Mode=OneWay, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
+
+                        <!-- Open Folder and Download links -->
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button Content="Open Folder"
+                                    Style="{StaticResource LinkButton}"
+                                    Command="{Binding OpenTessDataFolderCommand}"
+                                    Margin="0,0,12,0"/>
+                            <Button Content="Download eng.traineddata &#x2192;"
+                                    Style="{StaticResource LinkButton}"
+                                    Command="{Binding DownloadTessDataCommand}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Defaults -->
+                <TextBlock Text="Defaults"
+                           FontSize="14" FontWeight="Bold"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           Margin="0,0,0,8"/>
+
+                <Border Style="{StaticResource CardBorder}" Padding="16">
+                    <StackPanel>
+                        <TextBlock Text="Default Output Directory"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="12" Margin="0,0,0,4"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding DefaultOutputDir, UpdateSourceTrigger=PropertyChanged}"
+                                     Height="32" Padding="8,4"
+                                     BorderBrush="{StaticResource SurfaceDarkBrush}"/>
+                            <Button Grid.Column="1" Content="Browse"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Margin="8,0,0,0" Padding="10,6"
+                                    Command="{Binding BrowseOutputDirCommand}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

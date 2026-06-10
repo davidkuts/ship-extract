@@ -32,8 +32,7 @@ public sealed class TesseractOcrService : IOcrService, IDisposable
         {
             _isAvailable = false;
             _logger?.LogWarning(
-                "Tesseract OCR engine could not be initialised (tessdata path: {Path}). " +
-                "OCR will not be available. Error: {Error}", tessDataPath, ex.Message);
+                "Tesseract unavailable: {Message} — OCR fallback disabled", ex.Message);
         }
     }
 

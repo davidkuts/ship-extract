@@ -5,11 +5,20 @@ namespace ShipExtract.Domain.Validators;
 /// <summary>Holds the outcome of validating a <see cref="ShipmentRecord"/>.</summary>
 public sealed class ValidationResult
 {
-    /// <summary>Gets a value indicating whether the record passed all validation rules.</summary>
+    /// <summary>
+    /// Gets a value indicating whether the record passed all hard validation rules.
+    /// Soft warnings do not affect this flag.
+    /// </summary>
     public bool IsValid => !Errors.Any();
 
-    /// <summary>List of human-readable error messages describing each validation failure.</summary>
+    /// <summary>List of human-readable messages describing hard validation failures.</summary>
     public List<string> Errors { get; } = [];
+
+    /// <summary>List of human-readable messages describing soft warnings (incomplete but usable data).</summary>
+    public List<string> Warnings { get; } = [];
+
+    /// <summary>Gets a value indicating whether any soft warnings were raised.</summary>
+    public bool HasWarnings => Warnings.Any();
 }
 
 /// <summary>Validates a <see cref="ShipmentRecord"/> against the domain business rules.</summary>
@@ -25,19 +34,19 @@ public static class ShipmentRecordValidator
     {
         var result = new ValidationResult();
 
-        // At least one bill/tracking number must be present
+        // Soft: at least one bill/tracking number is expected (local models sometimes miss these)
         if (string.IsNullOrWhiteSpace(record.TrackingNumber) &&
             string.IsNullOrWhiteSpace(record.HouseBillNumber) &&
             string.IsNullOrWhiteSpace(record.MasterBillNumber))
         {
-            result.Errors.Add("At least one of TrackingNumber, HouseBillNumber, or MasterBillNumber must be provided.");
+            result.Warnings.Add("At least one of TrackingNumber, HouseBillNumber, or MasterBillNumber should be provided.");
         }
 
-        // Consignee identity must be present
+        // Soft: consignee identity is expected but absence is recoverable
         if (string.IsNullOrWhiteSpace(record.ConsigneeName) &&
             string.IsNullOrWhiteSpace(record.ConsigneeAddress))
         {
-            result.Errors.Add("ConsigneeName or ConsigneeAddress must be provided.");
+            result.Warnings.Add("ConsigneeName or ConsigneeAddress should be provided.");
         }
 
         // Weight must be positive when supplied

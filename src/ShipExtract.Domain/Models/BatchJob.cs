@@ -37,4 +37,15 @@ public sealed class BatchJob
 
     /// <summary>Percentage of files processed, in the range 0–100.</summary>
     public double ProgressPercent => TotalFiles == 0 ? 0 : (double)ProcessedFiles / TotalFiles * 100;
+
+    /// <summary>Total wall-clock duration of the batch (completed or still running).</summary>
+    public TimeSpan TotalDuration =>
+        CompletedAt.HasValue
+            ? CompletedAt.Value - CreatedAt
+            : DateTimeOffset.UtcNow - CreatedAt;
+
+    /// <summary>Average processing time per file, in seconds. Zero when no files have been processed.</summary>
+    public double AverageSecondsPerFile =>
+        ProcessedFiles == 0 ? 0 :
+            TotalDuration.TotalSeconds / ProcessedFiles;
 }

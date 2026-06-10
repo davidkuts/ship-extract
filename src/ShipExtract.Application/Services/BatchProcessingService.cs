@@ -22,21 +22,22 @@ public interface IBatchProcessingService
 }
 
 /// <summary>
-/// Processes a batch of PDF documents concurrently, delegating each file to
-/// <see cref="ExtractionPipeline"/> with a maximum parallelism of 4.
+/// Processes a batch of PDF documents, delegating each file to
+/// <see cref="ExtractionPipeline"/> with provider-aware concurrency.
+/// Ollama runs sequentially (1 at a time); Anthropic allows up to 4 concurrent.
 /// </summary>
 public sealed class BatchProcessingService : IBatchProcessingService
 {
-    private const int MaxDegreeOfParallelism = 4;
-
     private readonly ExtractionPipeline _pipeline;
     private readonly ILoggingService _logger;
+    private readonly int _maxConcurrency;
 
     /// <summary>Initialises a new instance of <see cref="BatchProcessingService"/>.</summary>
-    public BatchProcessingService(ExtractionPipeline pipeline, ILoggingService logger)
+    public BatchProcessingService(ExtractionPipeline pipeline, ILoggingService logger, int maxConcurrency = 4)
     {
-        _pipeline = pipeline;
-        _logger = logger;
+        _pipeline       = pipeline;
+        _logger         = logger;
+        _maxConcurrency = maxConcurrency;
     }
 
     /// <inheritdoc/>
@@ -45,20 +46,27 @@ public sealed class BatchProcessingService : IBatchProcessingService
         IProgress<BatchJob>? progress = null,
         CancellationToken ct = default)
     {
+        // Deduplicate by case-insensitive path
+        var deduplicated = filePaths
+            .GroupBy(p => p, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+
         var job = new BatchJob
         {
-            FilePaths = filePaths,
+            FilePaths = deduplicated,
             CreatedAt = DateTimeOffset.UtcNow,
             Status    = BatchStatus.Running
         };
 
-        _logger.LogInformation("Batch started — {TotalFiles} file(s) to process.", job.TotalFiles);
+        _logger.LogInformation("Batch started — {TotalFiles} file(s) to process (max concurrency: {Concurrency}).",
+            job.TotalFiles, _maxConcurrency);
 
-        var semaphore = new SemaphoreSlim(MaxDegreeOfParallelism);
+        var semaphore = new SemaphoreSlim(_maxConcurrency);
         var tasks = new List<Task>();
         var resultsLock = new object();
 
-        foreach (var filePath in filePaths)
+        foreach (var filePath in deduplicated)
         {
             if (ct.IsCancellationRequested)
                 break;
@@ -73,7 +81,7 @@ public sealed class BatchProcessingService : IBatchProcessingService
                     ProcessingResult fileResult;
                     try
                     {
-                        fileResult = await _pipeline.ProcessAsync(path, ct).ConfigureAwait(false);
+                        fileResult = await ProcessWithRetryAsync(path, ct).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException)
                     {
@@ -133,5 +141,24 @@ public sealed class BatchProcessingService : IBatchProcessingService
             job.Status, job.SuccessCount, job.FailureCount);
 
         return job;
+    }
+
+    private async Task<ProcessingResult> ProcessWithRetryAsync(string path, CancellationToken ct)
+    {
+        try
+        {
+            return await _pipeline.ProcessAsync(path, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("File {FilePath} failed on first attempt — retrying once. Reason: {Reason}",
+                path, ex.Message);
+            await Task.Delay(2000, ct).ConfigureAwait(false);
+            return await _pipeline.ProcessAsync(path, ct).ConfigureAwait(false);
+        }
     }
 }
