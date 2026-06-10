@@ -31,13 +31,19 @@ public sealed class BatchProcessingService : IBatchProcessingService
     private readonly ExtractionPipeline _pipeline;
     private readonly ILoggingService _logger;
     private readonly int _maxConcurrency;
+    private readonly IBatchHistoryService? _historyService;
 
     /// <summary>Initialises a new instance of <see cref="BatchProcessingService"/>.</summary>
-    public BatchProcessingService(ExtractionPipeline pipeline, ILoggingService logger, int maxConcurrency = 4)
+    public BatchProcessingService(
+        ExtractionPipeline pipeline,
+        ILoggingService logger,
+        int maxConcurrency = 4,
+        IBatchHistoryService? historyService = null)
     {
-        _pipeline       = pipeline;
-        _logger         = logger;
-        _maxConcurrency = maxConcurrency;
+        _pipeline        = pipeline;
+        _logger          = logger;
+        _maxConcurrency  = maxConcurrency;
+        _historyService  = historyService;
     }
 
     /// <inheritdoc/>
@@ -139,6 +145,19 @@ public sealed class BatchProcessingService : IBatchProcessingService
         _logger.LogInformation(
             "Batch finished — Status: {Status}, Success: {Success}, Failure: {Failure}",
             job.Status, job.SuccessCount, job.FailureCount);
+
+        if (_historyService is not null && job.Status == BatchStatus.Completed)
+        {
+            try
+            {
+                await _historyService.SaveAsync(job, CancellationToken.None).ConfigureAwait(false);
+                _logger.LogInformation("Batch {BatchId} saved to history.", job.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Failed to save batch to history: {Reason}", ex.Message);
+            }
+        }
 
         return job;
     }

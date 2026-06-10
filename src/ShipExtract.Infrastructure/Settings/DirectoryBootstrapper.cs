@@ -12,6 +12,7 @@ public static class DirectoryBootstrapper
         CreateIfMissing(settings.LogDirectory);
         CreateIfMissing(settings.TessDataDirectory);
         CreateIfMissing(settings.DefaultOutputDirectory);
+        CreateIfMissing(settings.HistoryDirectory);
 
         var tessDataDir    = settings.TessDataDirectory;
         bool hasTrainedData = !string.IsNullOrWhiteSpace(tessDataDir)

@@ -1,4 +1,6 @@
 using System.IO;
+using System.Windows;
+using WpfMessageBox = System.Windows.MessageBox;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ShipExtract.Domain.Enums;
@@ -19,6 +21,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly IAiExtractionService _aiService;
     private readonly IOllamaHealthService _ollamaHealthService;
     private readonly AppSettings _appSettings;
+    private readonly IBatchHistoryService? _historyService;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ApiKeyIsSet))]
@@ -52,6 +55,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private List<string> _ollamaAvailableModels = [];
     [ObservableProperty] private bool _ollamaModelFound;
     [ObservableProperty] private string _ollamaModelStatusText = string.Empty;
+    [ObservableProperty] private int _historyEntryCount;
+    [ObservableProperty] private string _historyDirectory = string.Empty;
 
     /// <summary>Gets whether a saved confirmation message is currently displayed.</summary>
     public bool HasSavedMessage => !string.IsNullOrEmpty(SavedMessage);
@@ -89,7 +94,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         AnthropicSettings anthropicSettings,
         IAiExtractionService aiService,
         IOllamaHealthService ollamaHealthService,
-        AppSettings appSettings)
+        AppSettings appSettings,
+        IBatchHistoryService? historyService = null)
     {
         _settingsService      = settingsService;
         _credentialService    = credentialService;
@@ -98,6 +104,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _aiService            = aiService;
         _ollamaHealthService  = ollamaHealthService;
         _appSettings          = appSettings;
+        _historyService       = historyService;
 
         var settings = _settingsService.Load();
         TessDataPath     = settings.TessDataDirectory;
@@ -106,6 +113,20 @@ public sealed partial class SettingsViewModel : ObservableObject
         SelectedProvider = _appSettings.AiProvider;
         OllamaBaseUrl    = _appSettings.OllamaBaseUrl;
         OllamaModel      = _appSettings.OllamaModel;
+        HistoryDirectory = _appSettings.HistoryDirectory;
+
+        _ = LoadHistoryCountAsync();
+    }
+
+    private async Task LoadHistoryCountAsync()
+    {
+        if (_historyService is null) return;
+        try
+        {
+            var entries = await _historyService.GetAllAsync();
+            HistoryEntryCount = entries.Count;
+        }
+        catch { /* best effort */ }
     }
 
     /// <summary>Refreshes OCR status properties.</summary>
@@ -263,6 +284,27 @@ public sealed partial class SettingsViewModel : ObservableObject
                 System.Diagnostics.Process.Start("explorer.exe", TessDataPath);
         }
         catch { /* best effort */ }
+    }
+
+    /// <summary>Clears all batch history entries from disk.</summary>
+    [RelayCommand]
+    private async Task ClearHistory(CancellationToken ct)
+    {
+        if (_historyService is null) return;
+
+        var confirm = WpfMessageBox.Show(
+            "Clear all batch history? This cannot be undone.",
+            "Settings \u2014 Clear History",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (confirm != MessageBoxResult.Yes) return;
+
+        await _historyService.ClearAllAsync(ct);
+        HistoryEntryCount = 0;
+        SavedMessage = "History cleared.";
+        await Task.Delay(3000, ct);
+        SavedMessage = string.Empty;
     }
 
     /// <summary>Opens the browser to download eng.traineddata.</summary>

@@ -31,4 +31,7 @@ public sealed class AppSettings
 
     /// <summary>Ollama model name to use for extraction.</summary>
     public string OllamaModel { get; set; } = "mistral";
+
+    /// <summary>Directory where batch history files are stored.</summary>
+    public string HistoryDirectory { get; set; } = string.Empty;
 }
