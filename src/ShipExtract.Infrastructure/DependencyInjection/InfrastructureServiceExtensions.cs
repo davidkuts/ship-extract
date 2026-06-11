@@ -7,6 +7,7 @@ using ShipExtract.Infrastructure.Carriers;
 using ShipExtract.Infrastructure.Export;
 using ShipExtract.Infrastructure.History;
 using ShipExtract.Infrastructure.Logging;
+using ShipExtract.Infrastructure.Network;
 using ShipExtract.Infrastructure.Ocr;
 using ShipExtract.Infrastructure.Pdf;
 using ShipExtract.Infrastructure.Settings;
@@ -106,6 +107,15 @@ public static class InfrastructureServiceExtensions
         services.AddSingleton<IExportService, CsvExportService>();
         services.AddSingleton<IExportService, ExcelExportService>();
         services.AddSingleton<ExportServiceFactory>();
+
+        // Network connectivity checker
+        services.AddHttpClient(nameof(NetworkChecker), client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
+        services.AddSingleton<INetworkChecker>(sp =>
+            new NetworkChecker(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(NetworkChecker))));
 
         return services;
     }

@@ -1,3 +1,5 @@
+using ShipExtract.Domain.Enums;
+using ShipExtract.Domain.Exceptions;
 using ShipExtract.Domain.Interfaces;
 using ShipExtract.Domain.Models;
 using UglyToad.PdfPig;
@@ -13,6 +15,16 @@ public sealed class PdfPigParser : IPdfParser
 {
     private readonly Domain.Interfaces.ILoggingService _logger;
 
+    // Maximum characters extracted for AI — pages are ranked by keyword density before truncation.
+    private const int MaxTextChars = 8000;
+
+    private static readonly string[] ShipmentKeywords =
+    [
+        "tracking", "consignee", "shipper", "shipment", "waybill", "bill", "weight",
+        "cargo", "invoice", "freight", "delivery", "address", "country", "package",
+        "customs", "hawb", "mawb", "pieces", "gross"
+    ];
+
     /// <summary>Initialises a new instance of <see cref="PdfPigParser"/>.</summary>
     /// <param name="logger">Logger for diagnostic output.</param>
     public PdfPigParser(Domain.Interfaces.ILoggingService logger)
@@ -24,10 +36,11 @@ public sealed class PdfPigParser : IPdfParser
     public Task<string> ExtractTextAsync(string filePath, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
+        ValidatePdfFile(filePath);
 
         try
         {
-            using var document = PdfDocument.Open(filePath);
+            using var document = OpenDocument(filePath);
             var pages = new List<string>();
 
             foreach (var page in document.GetPages())
@@ -37,12 +50,16 @@ public sealed class PdfPigParser : IPdfParser
                 pages.Add(string.Join(" ", words.Select(w => w.Text)));
             }
 
-            return Task.FromResult(string.Join(Environment.NewLine, pages));
+            return Task.FromResult(SmartTruncate(pages));
+        }
+        catch (ShipExtractException)
+        {
+            throw;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new InvalidOperationException(
-                "PDF could not be opened. It may be password-protected or corrupt.", ex);
+            throw new ShipExtractException(ExtractionErrorCode.PdfReadFailure,
+                "The PDF could not be read. It may be damaged or in an unsupported format.", ex);
         }
     }
 
@@ -50,10 +67,11 @@ public sealed class PdfPigParser : IPdfParser
     public Task<bool> HasSelectableTextAsync(string filePath, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
+        ValidatePdfFile(filePath);
 
         try
         {
-            using var document = PdfDocument.Open(filePath);
+            using var document = OpenDocument(filePath);
             foreach (var page in document.GetPages())
             {
                 ct.ThrowIfCancellationRequested();
@@ -63,10 +81,14 @@ public sealed class PdfPigParser : IPdfParser
 
             return Task.FromResult(false);
         }
+        catch (ShipExtractException)
+        {
+            throw;
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new InvalidOperationException(
-                "PDF could not be opened. It may be password-protected or corrupt.", ex);
+            throw new ShipExtractException(ExtractionErrorCode.PdfReadFailure,
+                "The PDF could not be read. It may be damaged or in an unsupported format.", ex);
         }
     }
 
@@ -75,10 +97,15 @@ public sealed class PdfPigParser : IPdfParser
         string filePath, int dpi = 200, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
+        ValidatePdfFile(filePath);
 
         try
         {
             return Task.FromResult(RenderWithDocnet(filePath, dpi, ct));
+        }
+        catch (ShipExtractException)
+        {
+            throw;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -88,6 +115,99 @@ public sealed class PdfPigParser : IPdfParser
             return Task.FromResult<IReadOnlyList<byte[]>>([]);
         }
     }
+
+    // ── Validation ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Validates that <paramref name="filePath"/> exists, is non-empty, and starts with the
+    /// <c>%PDF</c> magic bytes. Throws <see cref="ShipExtractException"/> on any failure.
+    /// </summary>
+    private static void ValidatePdfFile(string filePath)
+    {
+        if (!File.Exists(filePath))
+            throw new ShipExtractException(ExtractionErrorCode.PdfReadFailure,
+                $"File not found: {Path.GetFileName(filePath)}");
+
+        var info = new FileInfo(filePath);
+        if (info.Length == 0)
+            throw new ShipExtractException(ExtractionErrorCode.EmptyFile,
+                $"The file is empty (0 bytes): {Path.GetFileName(filePath)}");
+
+        // Check %PDF magic bytes
+        using var fs = File.OpenRead(filePath);
+        Span<byte> header = stackalloc byte[4];
+        int read = fs.Read(header);
+        if (read < 4 || header[0] != '%' || header[1] != 'P' || header[2] != 'D' || header[3] != 'F')
+            throw new ShipExtractException(ExtractionErrorCode.CorruptFile,
+                $"Not a valid PDF file (missing %%PDF header): {Path.GetFileName(filePath)}");
+    }
+
+    // ── Password/encryption detection ────────────────────────────────────────
+
+    private static PdfDocument OpenDocument(string filePath)
+    {
+        try
+        {
+            return PdfDocument.Open(filePath);
+        }
+        catch (Exception ex) when (IsPasswordOrEncryptionError(ex))
+        {
+            throw new ShipExtractException(ExtractionErrorCode.PasswordProtected,
+                $"The PDF is password-protected and cannot be opened: {Path.GetFileName(filePath)}", ex);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new ShipExtractException(ExtractionErrorCode.CorruptFile,
+                $"The PDF could not be opened. It may be corrupt or use an unsupported format: {Path.GetFileName(filePath)}", ex);
+        }
+    }
+
+    private static bool IsPasswordOrEncryptionError(Exception ex) =>
+        ex.Message.Contains("password",  StringComparison.OrdinalIgnoreCase) ||
+        ex.Message.Contains("encrypt",   StringComparison.OrdinalIgnoreCase) ||
+        ex.GetType().Name.Contains("Encrypt",  StringComparison.OrdinalIgnoreCase) ||
+        ex.GetType().Name.Contains("Password", StringComparison.OrdinalIgnoreCase);
+
+    // ── Smart truncation ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns extracted text up to <see cref="MaxTextChars"/> characters.
+    /// When the combined page text exceeds the limit, pages are ranked by shipment-keyword
+    /// density and the highest-scoring pages are included first.
+    /// </summary>
+    private static string SmartTruncate(List<string> pageTexts)
+    {
+        var combined = string.Join(Environment.NewLine, pageTexts);
+        if (combined.Length <= MaxTextChars)
+            return combined;
+
+        // Score each page by keyword density, preserving original index for stable sort.
+        var scored = pageTexts
+            .Select((text, index) => (text, index, score: ScorePage(text)))
+            .OrderByDescending(p => p.score)
+            .ThenBy(p => p.index)
+            .ToList();
+
+        var sb = new System.Text.StringBuilder(MaxTextChars);
+        foreach (var (text, _, _) in scored)
+        {
+            int needed = sb.Length > 0 ? text.Length + Environment.NewLine.Length : text.Length;
+            if (sb.Length + needed > MaxTextChars) break;
+
+            if (sb.Length > 0) sb.Append(Environment.NewLine);
+            sb.Append(text);
+        }
+
+        return sb.ToString();
+    }
+
+    private static int ScorePage(string text)
+    {
+        var lower = text.ToLowerInvariant();
+        return ShipmentKeywords.Count(kw => lower.Contains(kw));
+    }
+
+    // ── Docnet rendering ─────────────────────────────────────────────────────
 
     private static IReadOnlyList<byte[]> RenderWithDocnet(string filePath, int dpi, CancellationToken ct)
     {
@@ -107,8 +227,6 @@ public sealed class PdfPigParser : IPdfParser
             int height = pageReader.GetPageHeight();
             byte[] rawBgra = pageReader.GetImage();
 
-            // Convert raw BGRA to PNG using System.Drawing or SkiaSharp
-            // Use a simple BMP-style conversion: write a 24-bit bitmap in memory
             var png = ConvertBgraToPng(rawBgra, width, height);
             results.Add(png);
         }
@@ -119,29 +237,25 @@ public sealed class PdfPigParser : IPdfParser
     private static byte[] ConvertBgraToPng(byte[] bgra, int width, int height)
     {
         // Build a minimal valid BMP (which Tesseract can read) from raw BGRA data
-        // BMP file header (14 bytes) + DIB header (40 bytes) + pixel data
         const int headerSize = 14 + 40;
-        int rowSize = (width * 3 + 3) & ~3; // 24-bit, padded to 4 bytes
+        int rowSize = (width * 3 + 3) & ~3;
         int pixelDataSize = rowSize * height;
         int fileSize = headerSize + pixelDataSize;
 
         var bmp = new byte[fileSize];
 
-        // BMP file header
         bmp[0] = (byte)'B'; bmp[1] = (byte)'M';
         WriteInt32(bmp, 2, fileSize);
         WriteInt32(bmp, 10, headerSize);
 
-        // DIB header (BITMAPINFOHEADER)
-        WriteInt32(bmp, 14, 40);          // header size
+        WriteInt32(bmp, 14, 40);
         WriteInt32(bmp, 18, width);
-        WriteInt32(bmp, 22, -height);     // negative = top-down
-        WriteInt16(bmp, 26, 1);           // color planes
-        WriteInt16(bmp, 28, 24);          // bits per pixel
-        WriteInt32(bmp, 30, 0);           // BI_RGB compression
+        WriteInt32(bmp, 22, -height);
+        WriteInt16(bmp, 26, 1);
+        WriteInt16(bmp, 28, 24);
+        WriteInt32(bmp, 30, 0);
         WriteInt32(bmp, 34, pixelDataSize);
 
-        // Pixel data: convert BGRA → BGR row by row
         int dest = headerSize;
         for (int y = 0; y < height; y++)
         {
@@ -150,12 +264,11 @@ public sealed class PdfPigParser : IPdfParser
             for (int x = 0; x < width; x++)
             {
                 int src = rowStart + x * 4;
-                bmp[dest++] = bgra[src];     // B
-                bmp[dest++] = bgra[src + 1]; // G
-                bmp[dest++] = bgra[src + 2]; // R
+                bmp[dest++] = bgra[src];
+                bmp[dest++] = bgra[src + 1];
+                bmp[dest++] = bgra[src + 2];
                 written += 3;
             }
-            // Row padding
             int pad = rowSize - written;
             dest += pad;
         }

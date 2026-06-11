@@ -14,5 +14,11 @@ public enum ExtractionErrorCode
     /// <summary>Extracted data failed domain validation rules.</summary>
     ValidationFailure,
     /// <summary>The file format is not supported by the current configuration.</summary>
-    UnsupportedFormat
+    UnsupportedFormat,
+    /// <summary>The PDF is encrypted or password-protected and cannot be opened without credentials.</summary>
+    PasswordProtected,
+    /// <summary>The file is corrupt, truncated, or does not contain a valid PDF structure.</summary>
+    CorruptFile,
+    /// <summary>The file is zero bytes or contains no content.</summary>
+    EmptyFile
 }

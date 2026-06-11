@@ -155,6 +155,24 @@
                             Click="CheckOllamaButton_Click"/>
                 </Grid>
             </Border>
+
+            <!-- Network unreachable banner -->
+            <Border Background="#C55A11"
+                    Padding="10,8"
+                    Visibility="{Binding NetworkWarningVisible, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <Grid>
+                    <TextBlock Text="{Binding NetworkWarningText, Mode=OneWay}"
+                               Foreground="White" VerticalAlignment="Center" FontSize="13"
+                               TextTrimming="CharacterEllipsis"/>
+                    <Button Content="Dismiss"
+                            HorizontalAlignment="Right"
+                            Style="{StaticResource SecondaryButton}"
+                            Background="White"
+                            Foreground="#C55A11"
+                            Padding="8,4"
+                            Command="{Binding DismissNetworkWarningCommand}"/>
+                </Grid>
+            </Border>
         </StackPanel>
 
         <!-- ═══════════════════════════════════════

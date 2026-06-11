@@ -22,7 +22,8 @@ public static class ApplicationServiceExtensions
                 sp.GetRequiredService<ExtractionPipeline>(),
                 sp.GetRequiredService<ILoggingService>(),
                 maxConcurrency,
-                sp.GetService<IBatchHistoryService>()));
+                sp.GetService<IBatchHistoryService>(),
+                sp.GetService<INetworkChecker>()));
         return services;
     }
 }

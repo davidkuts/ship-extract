@@ -45,6 +45,8 @@ public sealed partial class MainViewModel : ObservableObject
     private string _selectedOutputDirectory = string.Empty;
 
     [ObservableProperty] private bool _ollamaWarningVisible;
+    [ObservableProperty] private bool _networkWarningVisible;
+    [ObservableProperty] private string _networkWarningText = string.Empty;
     [ObservableProperty] private string _batchSummaryText = string.Empty;
 
     /// <summary>Gets whether an API key or Ollama provider is configured.</summary>
@@ -102,7 +104,24 @@ public sealed partial class MainViewModel : ObservableObject
 
         _selectedOutputDirectory = Environment.ExpandEnvironmentVariables(
             "%USERPROFILE%\\Documents\\ShipExtract");
+
+        // Subscribe to network warnings from the batch service
+        _batchService.OnNetworkWarning += msg =>
+        {
+            if (_appSettings.AiProvider == AiProvider.Anthropic)
+            {
+                WpfApplication.Current.Dispatcher.Invoke(() =>
+                {
+                    NetworkWarningText    = msg;
+                    NetworkWarningVisible = true;
+                });
+            }
+        };
     }
+
+    /// <summary>Dismisses the network warning banner.</summary>
+    [RelayCommand]
+    private void DismissNetworkWarning() => NetworkWarningVisible = false;
 
     /// <summary>Refreshes warning banner properties after settings change.</summary>
     public void RefreshWarnings()
@@ -166,6 +185,20 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (skipped > 0)
             StatusMessage = $"{skipped} duplicate file(s) skipped.";
+
+        var count = QueueItems.Count;
+        if (count > 100)
+        {
+            WpfMessageBox.Show(
+                $"{count} files queued. Processing this many files may take a long time and consume significant AI credits.",
+                "ShipExtract \u2014 Large Batch",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+        else if (count > 50)
+        {
+            StatusMessage = $"{count} files queued \u2014 large batch, processing may take a while.";
+        }
     }
 
     /// <summary>Removes a file from the queue.</summary>

@@ -50,9 +50,9 @@ public sealed class BatchHistoryService : IBatchHistoryService
 
             var entry = BuildEntry(job);
 
-            // Write detail file (with Results)
+            // Write detail file (with Results) — serialize via DTO to strip non-serializable Exception objects
             var detailPath = DetailPath(entry.BatchId);
-            var detailJson = JsonSerializer.Serialize(entry, JsonOptions);
+            var detailJson = JsonSerializer.Serialize(ToDto(entry), JsonOptions);
             await File.WriteAllTextAsync(detailPath, detailJson, ct).ConfigureAwait(false);
 
             // Update index (without Results — summary only for fast listing)
@@ -114,7 +114,8 @@ public sealed class BatchHistoryService : IBatchHistoryService
         try
         {
             var json = await File.ReadAllTextAsync(path, ct).ConfigureAwait(false);
-            return JsonSerializer.Deserialize<BatchHistoryEntry>(json, JsonOptions);
+            var dto  = JsonSerializer.Deserialize<BatchHistoryEntryDto>(json, JsonOptions);
+            return dto is null ? null : FromDto(dto);
         }
         catch
         {
@@ -224,4 +225,88 @@ public sealed class BatchHistoryService : IBatchHistoryService
 
     private string DetailPath(Guid batchId) =>
         Path.Combine(_historyDir, $"{batchId:N}.json");
+
+    // ── DTO conversion ────────────────────────────────────────────────────────
+
+    private static BatchHistoryEntryDto ToDto(BatchHistoryEntry entry) => new()
+    {
+        BatchId              = entry.BatchId,
+        CompletedAt          = entry.CompletedAt,
+        TotalFiles           = entry.TotalFiles,
+        SuccessCount         = entry.SuccessCount,
+        FailureCount         = entry.FailureCount,
+        TotalDurationSeconds = entry.TotalDurationSeconds,
+        PrimaryCarrier       = entry.PrimaryCarrier,
+        Results              = entry.Results.Select(ToDto).ToList()
+    };
+
+    private static ProcessingResultDto ToDto(ProcessingResult r) => new()
+    {
+        JobId                  = r.JobId,
+        SourceFilePath         = r.SourceFilePath,
+        Status                 = r.Status,
+        Record                 = r.Record,
+        Errors                 = r.Errors.Select(ToDto).ToList(),
+        UsedOcrFallback        = r.UsedOcrFallback,
+        UsedFallbackExtraction = r.UsedFallbackExtraction,
+        ProcessingDuration     = r.ProcessingDuration,
+        ProcessedAt            = r.ProcessedAt,
+        DetectedCarrier        = r.DetectedCarrier,
+        PreProcessingReport    = r.PreProcessingReport is null ? null : new PreProcessingReportDto
+        {
+            OriginalCharacterCount = r.PreProcessingReport.OriginalCharacterCount,
+            CleanedCharacterCount  = r.PreProcessingReport.CleanedCharacterCount,
+            StepsApplied           = r.PreProcessingReport.StepsApplied
+        }
+        // RawAiResponse, ExtractedRawText intentionally not persisted
+    };
+
+    private static ExtractionErrorDto ToDto(ExtractionError e) => new()
+    {
+        Code             = e.Code,
+        Message          = e.Message,
+        FieldName        = e.FieldName,
+        ExceptionType    = e.Exception?.GetType().Name,
+        ExceptionMessage = e.Exception?.Message
+    };
+
+    private static BatchHistoryEntry FromDto(BatchHistoryEntryDto dto) => new()
+    {
+        BatchId              = dto.BatchId,
+        CompletedAt          = dto.CompletedAt,
+        TotalFiles           = dto.TotalFiles,
+        SuccessCount         = dto.SuccessCount,
+        FailureCount         = dto.FailureCount,
+        TotalDurationSeconds = dto.TotalDurationSeconds,
+        PrimaryCarrier       = dto.PrimaryCarrier,
+        Results              = dto.Results.Select(FromDto).ToList()
+    };
+
+    private static ProcessingResult FromDto(ProcessingResultDto dto) => new ProcessingResult
+    {
+        JobId                  = dto.JobId,
+        SourceFilePath         = dto.SourceFilePath,
+        ProcessedAt            = dto.ProcessedAt,
+        Status                 = dto.Status,
+        Record                 = dto.Record,
+        Errors                 = dto.Errors.Select(FromDto).ToList(),
+        UsedOcrFallback        = dto.UsedOcrFallback,
+        UsedFallbackExtraction = dto.UsedFallbackExtraction,
+        ProcessingDuration     = dto.ProcessingDuration,
+        DetectedCarrier        = dto.DetectedCarrier,
+        PreProcessingReport    = dto.PreProcessingReport is null ? null : new Domain.Models.PreProcessingReport
+        {
+            OriginalCharacterCount = dto.PreProcessingReport.OriginalCharacterCount,
+            CleanedCharacterCount  = dto.PreProcessingReport.CleanedCharacterCount,
+            StepsApplied           = dto.PreProcessingReport.StepsApplied
+        }
+    };
+
+    private static ExtractionError FromDto(ExtractionErrorDto dto) => new()
+    {
+        Code      = dto.Code,
+        Message   = dto.Message,
+        FieldName = dto.FieldName
+        // Exception stays null — not stored in history, not needed for result viewing
+    };
 }

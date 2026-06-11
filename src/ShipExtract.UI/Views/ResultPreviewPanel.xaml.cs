@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using ShipExtract.Domain.Models;
+using ShipExtract.Infrastructure.Errors;
 using WpfApplication  = System.Windows.Application;
 using WpfBrush        = System.Windows.Media.Brush;
 using WpfTabControl   = System.Windows.Controls.TabControl;
@@ -109,7 +110,66 @@ public partial class ResultPreviewPanel : WpfUserControl
             ]);
         }
 
+        if (result.Errors.Count > 0)
+            AddErrorsSection(result);
+
         AddRawTextSection(result);
+    }
+
+    private void AddErrorsSection(ProcessingResult result)
+    {
+        var expander = new Expander
+        {
+            Header     = "Errors & Diagnostics",
+            IsExpanded = true,
+            Margin     = new Thickness(0, 0, 0, 6),
+            FontWeight = FontWeights.SemiBold,
+            FontSize   = 12,
+            Foreground = (WpfBrush)WpfApplication.Current.Resources["TextPrimaryBrush"]
+        };
+
+        var panel = new StackPanel { Margin = new Thickness(4, 4, 4, 0) };
+
+        foreach (var error in result.Errors)
+        {
+            // User-facing message
+            var userMsg = new TextBlock
+            {
+                Text         = UserFacingMessages.GetMessage(error.Code),
+                TextWrapping = TextWrapping.Wrap,
+                FontSize     = 12,
+                Foreground   = (WpfBrush)WpfApplication.Current.Resources["TextPrimaryBrush"],
+                Margin       = new Thickness(0, 0, 0, 2)
+            };
+            panel.Children.Add(userMsg);
+
+            // Technical details (collapsed by default)
+            if (!string.IsNullOrWhiteSpace(error.Message))
+            {
+                var techExpander = new Expander
+                {
+                    Header     = "Technical details",
+                    IsExpanded = false,
+                    Margin     = new Thickness(0, 0, 0, 6),
+                    FontWeight = FontWeights.Normal,
+                    FontSize   = 11,
+                    Foreground = (WpfBrush)WpfApplication.Current.Resources["TextSecondaryBrush"],
+                    Content    = new TextBlock
+                    {
+                        Text         = error.Message,
+                        TextWrapping = TextWrapping.Wrap,
+                        FontFamily   = new System.Windows.Media.FontFamily("Consolas"),
+                        FontSize     = 10,
+                        Margin       = new Thickness(4),
+                        Foreground   = (WpfBrush)WpfApplication.Current.Resources["TextSecondaryBrush"]
+                    }
+                };
+                panel.Children.Add(techExpander);
+            }
+        }
+
+        expander.Content = panel;
+        ContentPanel.Children.Add(expander);
     }
 
     private void AddRawTextSection(ProcessingResult result)

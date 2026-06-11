@@ -9,6 +9,12 @@ namespace ShipExtract.Application.Services;
 public interface IBatchProcessingService
 {
     /// <summary>
+    /// Raised when a network connectivity problem is detected before or during processing.
+    /// The string argument is a human-readable warning message.
+    /// </summary>
+    event Action<string>? OnNetworkWarning;
+
+    /// <summary>
     /// Processes a list of file paths as a batch, returning a completed <see cref="BatchJob"/>.
     /// </summary>
     /// <param name="filePaths">Absolute paths to the PDF files to process.</param>
@@ -32,18 +38,27 @@ public sealed class BatchProcessingService : IBatchProcessingService
     private readonly ILoggingService _logger;
     private readonly int _maxConcurrency;
     private readonly IBatchHistoryService? _historyService;
+    private readonly INetworkChecker? _networkChecker;
+
+    // Progress throttle: report at most once per 500 ms to avoid UI flooding.
+    private long _lastProgressTickMs;
+
+    /// <inheritdoc/>
+    public event Action<string>? OnNetworkWarning;
 
     /// <summary>Initialises a new instance of <see cref="BatchProcessingService"/>.</summary>
     public BatchProcessingService(
         ExtractionPipeline pipeline,
         ILoggingService logger,
         int maxConcurrency = 4,
-        IBatchHistoryService? historyService = null)
+        IBatchHistoryService? historyService = null,
+        INetworkChecker? networkChecker = null)
     {
         _pipeline        = pipeline;
         _logger          = logger;
         _maxConcurrency  = maxConcurrency;
         _historyService  = historyService;
+        _networkChecker  = networkChecker;
     }
 
     /// <inheritdoc/>
@@ -58,6 +73,26 @@ public sealed class BatchProcessingService : IBatchProcessingService
             .Select(g => g.First())
             .ToList();
 
+        // Network pre-flight (non-blocking — warn but do not abort)
+        if (_networkChecker is not null && !ct.IsCancellationRequested)
+        {
+            try
+            {
+                var reachable = await _networkChecker.IsAnthropicReachableAsync(ct).ConfigureAwait(false);
+                if (!reachable)
+                {
+                    const string msg = "Cannot reach api.anthropic.com — API calls may fail. " +
+                                       "Check your internet connection.";
+                    _logger.LogWarning(msg);
+                    OnNetworkWarning?.Invoke(msg);
+                }
+            }
+            catch
+            {
+                // Network check itself must never crash the batch
+            }
+        }
+
         var job = new BatchJob
         {
             FilePaths = deduplicated,
@@ -68,9 +103,10 @@ public sealed class BatchProcessingService : IBatchProcessingService
         _logger.LogInformation("Batch started — {TotalFiles} file(s) to process (max concurrency: {Concurrency}).",
             job.TotalFiles, _maxConcurrency);
 
-        var semaphore = new SemaphoreSlim(_maxConcurrency);
-        var tasks = new List<Task>();
-        var resultsLock = new object();
+        var semaphore    = new SemaphoreSlim(_maxConcurrency);
+        var tasks        = new List<Task>();
+        var resultsLock  = new object();
+        _lastProgressTickMs = 0;
 
         foreach (var filePath in deduplicated)
         {
@@ -91,7 +127,6 @@ public sealed class BatchProcessingService : IBatchProcessingService
                     }
                     catch (OperationCanceledException)
                     {
-                        // Do not record cancelled files as failures
                         return;
                     }
                     catch (Exception ex)
@@ -110,6 +145,7 @@ public sealed class BatchProcessingService : IBatchProcessingService
                         });
                     }
 
+                    bool shouldReport;
                     lock (resultsLock)
                     {
                         job.Results.Add(fileResult);
@@ -119,10 +155,17 @@ public sealed class BatchProcessingService : IBatchProcessingService
                             job.SuccessCount++;
                         else
                             job.FailureCount++;
+
+                        // Throttle progress reports to 500 ms
+                        var nowMs = Environment.TickCount64;
+                        shouldReport = (nowMs - _lastProgressTickMs) >= 500;
+                        if (shouldReport)
+                            _lastProgressTickMs = nowMs;
                     }
 
                     _logger.LogInformation("File processed: {FilePath} → {Status}", path, fileResult.Status);
-                    progress?.Report(job);
+                    if (shouldReport)
+                        progress?.Report(job);
                 }
                 finally
                 {
@@ -140,6 +183,9 @@ public sealed class BatchProcessingService : IBatchProcessingService
         {
             job.Status = BatchStatus.Cancelled;
         }
+
+        // Always send a final progress update so the UI reflects the last file
+        progress?.Report(job);
 
         job.CompletedAt = DateTimeOffset.UtcNow;
         _logger.LogInformation(
