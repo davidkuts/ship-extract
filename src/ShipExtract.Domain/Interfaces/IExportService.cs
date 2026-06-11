@@ -9,8 +9,10 @@ public interface IExportService
     /// <summary>Writes the supplied results to a file at the given path.</summary>
     /// <param name="results">The processing results to export.</param>
     /// <param name="outputPath">Destination file path (will be created or overwritten).</param>
+    /// <param name="confidenceThreshold">Results below this score go to a separate review file/sheet.</param>
     /// <param name="ct">Cancellation token.</param>
-    Task ExportAsync(IReadOnlyList<ProcessingResult> results, string outputPath, CancellationToken ct = default);
+    Task ExportAsync(IReadOnlyList<ProcessingResult> results, string outputPath,
+        double confidenceThreshold = 0.60, CancellationToken ct = default);
 
     /// <summary>Gets the file format produced by this exporter.</summary>
     ExportFormat SupportedFormat { get; }

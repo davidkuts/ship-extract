@@ -121,7 +121,7 @@ public sealed class OllamaExtractionService : IAiExtractionService
 
         _logger.LogWarning("Ollama returned invalid JSON — attempting repair.");
 
-        // Retry with repair prompt
+        // Attempt 2 — repair prompt
         var repairPrompt =
             $"""
             The text below is supposed to be a JSON object but has syntax errors.
@@ -136,12 +136,81 @@ public sealed class OllamaExtractionService : IAiExtractionService
         {
             var repaired = await GenerateAsync(baseUrl, repairPrompt, ct).ConfigureAwait(false);
             repaired = ExtractJsonFromResponse(repaired);
-            return TryParseResponse(repaired, rawResponse)
-                   ?? Fail("Ollama returned invalid JSON that could not be repaired.");
+            var repairResult = TryParseResponse(repaired, rawResponse);
+            if (repairResult is not null) return repairResult;
+
+            // Attempt 3 — minimal fallback prompt.
+            // Only triggered when the repair response still has JSON-like structure (contains '{'),
+            // indicating the model is trying to produce JSON but keeps generating syntax errors.
+            if (repaired.Contains('{'))
+            {
+                var fallback = await TryMinimalFallbackAsync(baseUrl, rawText, rawResponse, ct)
+                    .ConfigureAwait(false);
+                if (fallback is not null) return fallback;
+            }
+
+            return Fail("Ollama returned invalid JSON that could not be repaired.");
         }
         catch
         {
             return Fail("Ollama returned invalid JSON that could not be repaired.");
+        }
+    }
+
+    private async Task<AiExtractionResponse?> TryMinimalFallbackAsync(
+        string baseUrl, string rawText, string originalRawJson, CancellationToken ct)
+    {
+        var snippet = rawText.Length > 1000 ? rawText[..1000] : rawText;
+        var minimalPrompt =
+            $$"""
+            Extract these 6 fields from the shipping document text below.
+            Return ONLY a JSON object with exactly these keys:
+
+            {
+              "trackingNumber": "string or null",
+              "shipperName": "string or null",
+              "consigneeName": "string or null",
+              "grossWeightKg": number or null,
+              "declaredValue": number or null,
+              "currency": "string or null"
+            }
+
+            Document:
+            {{snippet}}
+            """;
+
+        try
+        {
+            var minimalResponse = await GenerateAsync(baseUrl, minimalPrompt, ct).ConfigureAwait(false);
+            var minimalCleaned  = ExtractJsonFromResponse(minimalResponse);
+            var dto = System.Text.Json.JsonSerializer.Deserialize<MinimalFallbackDto>(
+                minimalCleaned, JsonOptions);
+
+            if (dto is null) return null;
+
+            var record = new Domain.Models.ShipmentRecord
+            {
+                TrackingNumber = dto.TrackingNumber,
+                ShipperName    = dto.ShipperName,
+                ConsigneeName  = dto.ConsigneeName,
+                GrossWeightKg  = dto.GrossWeightKg,
+                DeclaredValue  = dto.DeclaredValue,
+                Currency       = dto.Currency,
+                ConfidenceScore = 0.30,
+            };
+
+            _logger.LogWarning(
+                "Used minimal fallback extraction — only core fields captured. Tracking={Tracking}",
+                record.TrackingNumber ?? "<null>");
+
+            return new AiExtractionResponse(record, 0.30, originalRawJson, true, null)
+            {
+                UsedFallbackExtraction = true
+            };
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -320,4 +389,25 @@ file sealed class OllamaGenerateResponse
 
     [System.Text.Json.Serialization.JsonPropertyName("done")]
     public bool Done { get; set; }
+}
+
+file sealed class MinimalFallbackDto
+{
+    [System.Text.Json.Serialization.JsonPropertyName("trackingNumber")]
+    public string? TrackingNumber { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("shipperName")]
+    public string? ShipperName { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("consigneeName")]
+    public string? ConsigneeName { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("grossWeightKg")]
+    public decimal? GrossWeightKg { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("declaredValue")]
+    public decimal? DeclaredValue { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("currency")]
+    public string? Currency { get; set; }
 }

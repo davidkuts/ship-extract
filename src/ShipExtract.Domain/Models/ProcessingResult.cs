@@ -40,4 +40,11 @@ public sealed class ProcessingResult
 
     /// <summary>Carrier automatically detected from the document text before AI extraction.</summary>
     public CarrierType DetectedCarrier { get; set; } = CarrierType.Unknown;
+
+    /// <summary>True when the AI used the minimal 3-field fallback extraction prompt.</summary>
+    public bool UsedFallbackExtraction { get; set; }
+
+    /// <summary>Returns true when this result's confidence meets or exceeds the given threshold.</summary>
+    public bool MeetsConfidenceThreshold(double threshold) =>
+        Record is not null && Record.ConfidenceScore >= threshold;
 }

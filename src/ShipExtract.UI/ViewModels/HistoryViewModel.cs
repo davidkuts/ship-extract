@@ -205,7 +205,7 @@ public sealed partial class HistoryViewModel : ObservableObject
             var outputPath = Path.Combine(outputDir, $"ShipExtract_History_{timestamp}.{extension}");
 
             var exporter = _exportFactory.GetService(format);
-            await exporter.ExportAsync(detail.Results, outputPath, ct);
+            await exporter.ExportAsync(detail.Results, outputPath, _appSettings.MinimumConfidenceThreshold, ct);
 
             _logger.LogInformation("History export ({Format}) written to {Path}", format, outputPath);
 

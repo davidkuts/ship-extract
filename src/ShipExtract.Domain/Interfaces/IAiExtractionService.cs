@@ -15,7 +15,11 @@ public record AiExtractionResponse(
     string RawJson,
     bool Success,
     string? ErrorMessage
-);
+)
+{
+    /// <summary>True when the result was produced by the minimal 3-field fallback extraction prompt.</summary>
+    public bool UsedFallbackExtraction { get; init; }
+}
 
 /// <summary>Uses an AI language model to extract structured shipment data from raw document text.</summary>
 public interface IAiExtractionService

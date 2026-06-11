@@ -157,7 +157,7 @@ public sealed partial class MainViewModel : ObservableObject
                 continue;
             }
 
-            QueueItems.Add(new QueueItemViewModel(path));
+            QueueItems.Add(new QueueItemViewModel(path, _appSettings.MinimumConfidenceThreshold));
         }
 
         TotalFiles = QueueItems.Count;
@@ -331,10 +331,24 @@ public sealed partial class MainViewModel : ObservableObject
             var outputPath = Path.Combine(
                 SelectedOutputDirectory, $"ShipExtract_{timestamp}.{extension}");
 
-            var exporter = _exportFactory.GetService(format);
-            await exporter.ExportAsync(_lastBatchJob.Results, outputPath, ct);
+            var threshold = _appSettings.MinimumConfidenceThreshold;
+            var exporter  = _exportFactory.GetService(format);
+            await exporter.ExportAsync(_lastBatchJob.Results, outputPath, threshold, ct);
 
             _logger.LogInformation("Exported {Format} to {Path}", format, outputPath);
+
+            // Count above/below threshold for the status message
+            var exportable = _lastBatchJob.Results
+                .Where(r => r.Record is not null &&
+                            r.Status is Domain.Enums.ProcessingStatus.Succeeded
+                                     or Domain.Enums.ProcessingStatus.PartialSuccess)
+                .ToList();
+            var aboveCount = exportable.Count(r => r.MeetsConfidenceThreshold(threshold));
+            var belowCount = exportable.Count - aboveCount;
+
+            StatusMessage = belowCount > 0
+                ? $"Exported {aboveCount} results \u00B7 {belowCount} sent to Review sheet"
+                : $"Exported {aboveCount} results \u00B7 All above {threshold:P0} threshold";
 
             WpfMessageBox.Show(
                 $"Export complete:\n{outputPath}",
@@ -390,7 +404,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         foreach (var result in entry.Results)
         {
-            var item = new QueueItemViewModel(result.SourceFilePath);
+            var item = new QueueItemViewModel(result.SourceFilePath, _appSettings.MinimumConfidenceThreshold);
             item.UpdateFromResult(result);
             QueueItems.Add(item);
         }

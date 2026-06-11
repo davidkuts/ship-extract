@@ -225,6 +225,7 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
                                     <!-- PDF icon -->
@@ -282,14 +283,19 @@
                                                    Foreground="{Binding DetectedCarrier, Mode=OneWay, Converter={StaticResource CarrierToForeground}}"/>
                                     </Border>
 
-                                    <!-- Confidence -->
-                                    <TextBlock Grid.Column="4"
-                                               Text="{Binding ConfidenceText, Mode=OneWay}"
-                                               Foreground="{Binding ConfidenceColor, Mode=OneWay}"
-                                               FontSize="10" FontWeight="Bold"
-                                               Margin="4,0"
-                                               VerticalAlignment="Center"
-                                               Visibility="{Binding IsCompleted, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
+                                    <!-- Confidence badge (purple when below threshold) -->
+                                    <Border Grid.Column="4"
+                                            Background="{Binding ConfidenceBadgeBackground, Mode=OneWay}"
+                                            CornerRadius="3"
+                                            Padding="3,1"
+                                            Margin="4,0"
+                                            VerticalAlignment="Center"
+                                            ToolTip="{Binding ConfidenceTooltip, Mode=OneWay}"
+                                            Visibility="{Binding IsCompleted, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="{Binding ConfidenceText, Mode=OneWay}"
+                                                   Foreground="{Binding ConfidenceColor, Mode=OneWay}"
+                                                   FontSize="10" FontWeight="Bold"/>
+                                    </Border>
 
                                     <!-- Duration -->
                                     <TextBlock Grid.Column="4"
@@ -300,8 +306,23 @@
                                                VerticalAlignment="Center"
                                                Visibility="{Binding IsCompleted, Mode=OneWay, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
 
+                                    <!-- Fallback badge -->
+                                    <Border Grid.Column="5"
+                                            Background="#888888"
+                                            CornerRadius="3"
+                                            Padding="3,1"
+                                            Margin="2,0"
+                                            VerticalAlignment="Center"
+                                            ToolTip="Minimal fallback extraction &#x2014; only core fields captured"
+                                            Visibility="{Binding UsedFallback, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="FB"
+                                                   FontSize="9"
+                                                   Foreground="White"
+                                                   FontWeight="Bold"/>
+                                    </Border>
+
                                     <!-- Remove button -->
-                                    <Button Grid.Column="5"
+                                    <Button Grid.Column="6"
                                             Content="&#x2715;"
                                             FontSize="10"
                                             Background="Transparent"

@@ -49,7 +49,9 @@ public partial class App : System.Windows.Application
             }
             catch { /* logger not yet available */ }
 
-            var logDir = appSettings?.LogDirectory ?? "the log directory";
+            string logDir;
+            try { logDir = _host?.Services.GetRequiredService<AppSettings>().LogDirectory ?? appSettings?.LogDirectory ?? "the log directory"; }
+            catch { logDir = appSettings?.LogDirectory ?? "the log directory"; }
             WpfMessageBox.Show(
                 $"An unexpected error occurred:\n\n{userMsg}\n\n" +
                 $"Details have been logged to:\n{logDir}\n\n" +
@@ -109,6 +111,14 @@ public partial class App : System.Windows.Application
 
         await _host.StartAsync();
         ServiceLocator.Initialize(_host.Services);
+
+        var logger   = _host.Services.GetRequiredService<ShipExtract.Domain.Interfaces.ILoggingService>();
+        var settings = _host.Services.GetRequiredService<AppSettings>();
+        logger.LogInformation(
+            "ShipExtract started — LogDirectory: {LogDir}, TessDataDir: {TessDir}, HistoryDir: {HistDir}",
+            settings.LogDirectory,
+            settings.TessDataDirectory,
+            settings.HistoryDirectory);
 
         var mainWindow = _host.Services.GetRequiredService<MainWindow>();
         mainWindow.Show();

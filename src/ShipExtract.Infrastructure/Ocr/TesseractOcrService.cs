@@ -5,8 +5,9 @@ namespace ShipExtract.Infrastructure.Ocr;
 
 /// <summary>
 /// Implements <see cref="IOcrService"/> using the Tesseract OCR engine.
-/// If the engine cannot be initialised the service degrades gracefully,
-/// returning empty strings rather than throwing.
+/// Supports multiple languages specified by Tesseract language codes (e.g. "eng", "deu", "fra").
+/// If the combined language string fails to initialise, falls back to English only.
+/// If that also fails, the service degrades gracefully returning empty strings.
 /// </summary>
 public sealed class TesseractOcrService : IOcrService, IDisposable
 {
@@ -14,19 +15,60 @@ public sealed class TesseractOcrService : IOcrService, IDisposable
     private readonly bool _isAvailable;
     private readonly Domain.Interfaces.ILoggingService? _logger;
 
+    /// <summary>Gets the list of language codes that were successfully loaded into the engine.</summary>
+    public IReadOnlyList<string> ActiveLanguages { get; private set; } = [];
+
     /// <summary>
-    /// Initialises the Tesseract engine with English language data from
-    /// <paramref name="tessDataPath"/>.
+    /// Initialises the Tesseract engine with the specified languages from <paramref name="tessDataPath"/>.
+    /// Falls back to English-only on failure, and disables OCR if English also fails.
     /// </summary>
     /// <param name="tessDataPath">Path to the tessdata directory containing trained data files.</param>
+    /// <param name="languages">Tesseract language codes to load (e.g. ["eng", "deu"]). "eng" is always included.</param>
     /// <param name="logger">Optional logger for diagnostic output.</param>
-    public TesseractOcrService(string tessDataPath, Domain.Interfaces.ILoggingService? logger = null)
+    public TesseractOcrService(
+        string tessDataPath,
+        List<string>? languages = null,
+        Domain.Interfaces.ILoggingService? logger = null)
     {
         _logger = logger;
+
+        // Ensure "eng" is always present and deduplicate
+        var requestedLangs = (languages ?? new List<string> { "eng" })
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .Distinct()
+            .ToList();
+
+        if (!requestedLangs.Contains("eng", StringComparer.OrdinalIgnoreCase))
+            requestedLangs.Insert(0, "eng");
+
+        // Attempt initialisation with the combined language string
+        var langString = string.Join("+", requestedLangs);
         try
         {
-            _engine = new TesseractEngine(tessDataPath, "eng", EngineMode.Default);
+            _engine      = new TesseractEngine(tessDataPath, langString, EngineMode.Default);
             _isAvailable = true;
+            ActiveLanguages = requestedLangs.AsReadOnly();
+        }
+        catch (Exception ex) when (requestedLangs.Count > 1)
+        {
+            // Log which languages failed and fall back to English only
+            _logger?.LogWarning(
+                "Tesseract failed to load combined languages [{Langs}]: {Message} — falling back to English only",
+                langString, ex.Message);
+
+            try
+            {
+                _engine      = new TesseractEngine(tessDataPath, "eng", EngineMode.Default);
+                _isAvailable = true;
+                ActiveLanguages = new[] { "eng" };
+            }
+            catch (Exception fallbackEx)
+            {
+                _isAvailable = false;
+                _logger?.LogWarning(
+                    "Tesseract unavailable even with English only: {Message} — OCR fallback disabled",
+                    fallbackEx.Message);
+            }
         }
         catch (Exception ex)
         {

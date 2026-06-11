@@ -34,4 +34,11 @@ public sealed class AppSettings
 
     /// <summary>Directory where batch history files are stored.</summary>
     public string HistoryDirectory { get; set; } = string.Empty;
+
+    /// <summary>Minimum confidence score required for a result to appear in the main export sheet.
+    /// Results below this threshold are exported to a separate review file/sheet.</summary>
+    public double MinimumConfidenceThreshold { get; set; } = 0.60;
+
+    /// <summary>Tesseract language codes to use for OCR. The "eng" language is always included.</summary>
+    public List<string> OcrLanguages { get; set; } = new() { "eng" };
 }
