@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using ShipExtract.Domain.Enums;
+using ShipExtract.Domain.Exceptions;
 using ShipExtract.Domain.Interfaces;
 using ShipExtract.Domain.Models;
 using ShipExtract.Domain.Validators;
@@ -73,6 +74,17 @@ public sealed class ExtractionPipeline
             {
                 hasSelectableText = await _pdfParser.HasSelectableTextAsync(filePath, ct);
             }
+            catch (ShipExtractException ex)
+            {
+                result.Status = ProcessingStatus.Failed;
+                result.Errors.Add(new ExtractionError
+                {
+                    Code = ex.ErrorCode,
+                    Message = ex.Message,
+                    Exception = ex
+                });
+                return result;
+            }
             catch (InvalidOperationException ex) when (ex.Message.Contains("PDF could not be opened"))
             {
                 result.Status = ProcessingStatus.Failed;
@@ -91,6 +103,17 @@ public sealed class ExtractionPipeline
                 try
                 {
                     text = await _pdfParser.ExtractTextAsync(filePath, ct);
+                }
+                catch (ShipExtractException ex)
+                {
+                    result.Status = ProcessingStatus.Failed;
+                    result.Errors.Add(new ExtractionError
+                    {
+                        Code = ex.ErrorCode,
+                        Message = ex.Message,
+                        Exception = ex
+                    });
+                    return result;
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("PDF could not be opened"))
                 {
@@ -111,6 +134,17 @@ public sealed class ExtractionPipeline
                 try
                 {
                     pageImages = await _pdfParser.RenderPagesToImagesAsync(filePath, 200, ct);
+                }
+                catch (ShipExtractException ex)
+                {
+                    result.Status = ProcessingStatus.Failed;
+                    result.Errors.Add(new ExtractionError
+                    {
+                        Code = ex.ErrorCode,
+                        Message = ex.Message,
+                        Exception = ex
+                    });
+                    return result;
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("PDF could not be opened"))
                 {
@@ -231,6 +265,18 @@ public sealed class ExtractionPipeline
             _logger.LogWarning("Processing cancelled for {FilePath}", filePath);
             throw;
         }
+        catch (ShipExtractException ex)
+        {
+            result.Status = ProcessingStatus.Failed;
+            result.Errors.Add(new ExtractionError
+            {
+                Code = ex.ErrorCode,
+                Message = ex.Message,
+                Exception = ex
+            });
+            _logger.LogError("Domain error processing {FilePath}: {Code} — {Message}",
+                ex, filePath, ex.ErrorCode, ex.Message);
+        }
         catch (Exception ex)
         {
             result.Status = ProcessingStatus.Failed;
@@ -246,6 +292,11 @@ public sealed class ExtractionPipeline
         {
             stopwatch.Stop();
             result.ProcessingDuration = stopwatch.Elapsed;
+
+            // Memory cleanup: trim very long raw text after extraction is complete
+            if (result.ExtractedRawText is { Length: > 10000 })
+                result.ExtractedRawText = result.ExtractedRawText[..500]
+                    + "\n\n[Trimmed after processing — full text was too large to retain in memory]";
         }
 
         return result;

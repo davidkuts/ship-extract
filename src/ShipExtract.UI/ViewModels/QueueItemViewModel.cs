@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using ShipExtract.Domain.Enums;
 using ShipExtract.Domain.Models;
+using ShipExtract.Infrastructure.Errors;
 
 namespace ShipExtract.UI.ViewModels;
 
@@ -97,7 +98,7 @@ public sealed partial class QueueItemViewModel : ObservableObject
         Confidence   = result.Record?.ConfidenceScore ?? 0;
         Duration     = result.ProcessingDuration;
         ErrorSummary = result.Errors.Count > 0
-            ? string.Join("; ", result.Errors.Select(err => err.Message))
+            ? UserFacingMessages.GetMessage(result.Errors[0].Code)
             : string.Empty;
 
         IsCompleted = result.Status is ProcessingStatus.Succeeded

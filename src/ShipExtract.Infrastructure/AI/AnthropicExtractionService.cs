@@ -75,17 +75,15 @@ public sealed class AnthropicExtractionService : IAiExtractionService
     {
         try
         {
-            var caller       = GetCaller();
             var systemPrompt = ExtractionPromptBuilder.BuildSystemPrompt();
             var userPrompt   = ExtractionPromptBuilder.BuildUserPrompt(rawText, hint, carrier);
 
-            var rawResponse = await caller.SendAsync(
-                systemPrompt, userPrompt, _settings.Model, _settings.MaxTokens, ct);
+            var rawResponse = await ExecuteWithRetryAsync(systemPrompt, userPrompt, ct);
 
             var cleaned = StripMarkdownFences(rawResponse);
 
             return TryParseResponse(cleaned, rawResponse)
-                ?? await RetryWithRepairAsync(cleaned, rawResponse, caller, ct);
+                ?? await RetryWithRepairAsync(cleaned, rawResponse, ct);
         }
         catch (Exception ex)
         {
@@ -93,6 +91,46 @@ public sealed class AnthropicExtractionService : IAiExtractionService
             return new AiExtractionResponse(null, 0, string.Empty, false, ex.Message);
         }
     }
+
+    /// <summary>
+    /// Calls the Anthropic API with up to 3 attempts, waiting 15 s then 30 s on 429/rate-limit errors.
+    /// </summary>
+    private async Task<string> ExecuteWithRetryAsync(
+        string systemPrompt, string userPrompt, CancellationToken ct)
+    {
+        int[] waitSeconds = [0, 15, 30];
+
+        for (int attempt = 0; attempt < waitSeconds.Length; attempt++)
+        {
+            if (attempt > 0)
+            {
+                _logger.LogWarning(
+                    "Anthropic rate-limited — waiting {Secs}s before attempt {Attempt}.",
+                    waitSeconds[attempt], attempt + 1);
+                await Task.Delay(TimeSpan.FromSeconds(waitSeconds[attempt]), ct);
+            }
+
+            try
+            {
+                var caller = GetCaller();
+                return await caller.SendAsync(
+                    systemPrompt, userPrompt, _settings.Model, _settings.MaxTokens, ct);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested && IsRateLimitError(ex.Message))
+            {
+                if (attempt == waitSeconds.Length - 1)
+                    throw; // rethrow on final attempt
+            }
+        }
+
+        throw new InvalidOperationException("Unreachable: retry loop exhausted without result.");
+    }
+
+    private static bool IsRateLimitError(string message) =>
+        message.Contains("429",        StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("rate_limit", StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("rate limit", StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("overloaded", StringComparison.OrdinalIgnoreCase);
 
     private static string StripMarkdownFences(string text)
     {
@@ -120,7 +158,7 @@ public sealed class AnthropicExtractionService : IAiExtractionService
     }
 
     private async Task<AiExtractionResponse> RetryWithRepairAsync(
-        string badJson, string rawResponse, IAnthropicCaller caller, CancellationToken ct)
+        string badJson, string rawResponse, CancellationToken ct)
     {
         _logger.LogWarning("AI returned invalid JSON — attempting repair.");
 
@@ -130,12 +168,8 @@ public sealed class AnthropicExtractionService : IAiExtractionService
                 $"The following is not valid JSON. Fix it and return only the " +
                 $"corrected JSON object with no explanation: {badJson}";
 
-            var repaired = await caller.SendAsync(
-                ExtractionPromptBuilder.BuildSystemPrompt(),
-                repairPrompt,
-                _settings.Model,
-                _settings.MaxTokens,
-                ct);
+            var repaired = await ExecuteWithRetryAsync(
+                ExtractionPromptBuilder.BuildSystemPrompt(), repairPrompt, ct);
 
             repaired = StripMarkdownFences(repaired);
             return TryParseResponse(repaired, rawResponse)
