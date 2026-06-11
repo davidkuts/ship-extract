@@ -7,6 +7,8 @@ namespace ShipExtract.UI.ViewModels;
 /// <summary>Represents a single file in the processing queue.</summary>
 public sealed partial class QueueItemViewModel : ObservableObject
 {
+    private readonly double _confidenceThreshold;
+
     /// <summary>Gets the absolute path to the PDF file.</summary>
     public string FilePath { get; }
 
@@ -21,13 +23,20 @@ public sealed partial class QueueItemViewModel : ObservableObject
 
     [ObservableProperty] private string _confidenceText = "\u2014";
     [ObservableProperty] private string _confidenceColor = "#666666";
+    [ObservableProperty] private string _confidenceBadgeBackground = "Transparent";
+    [ObservableProperty] private string? _confidenceTooltip;
     [ObservableProperty] private string _durationText = "\u2014";
     [ObservableProperty] private bool _isCompleted;
     [ObservableProperty] private bool _isSelected;
     [ObservableProperty] private string? _rawExtractedText;
+    [ObservableProperty] private bool _usedFallback;
 
     private ProcessingResult? _lastResult;
     private PreProcessingReport? _preProcessingReport;
+
+    /// <summary>Gets whether this completed result is below the confidence threshold.</summary>
+    public bool BelowThreshold =>
+        IsCompleted && Confidence < _confidenceThreshold;
 
     /// <summary>Gets the carrier detected from the document text.</summary>
     public CarrierType DetectedCarrier { get; private set; } = CarrierType.Unknown;
@@ -67,9 +76,12 @@ public sealed partial class QueueItemViewModel : ObservableObject
     };
 
     /// <summary>Initialises a new instance of <see cref="QueueItemViewModel"/>.</summary>
-    public QueueItemViewModel(string filePath)
+    /// <param name="filePath">Absolute path to the PDF file.</param>
+    /// <param name="confidenceThreshold">Threshold below which the badge turns purple.</param>
+    public QueueItemViewModel(string filePath, double confidenceThreshold = 0.60)
     {
-        FilePath = filePath;
+        FilePath              = filePath;
+        _confidenceThreshold  = confidenceThreshold;
     }
 
     /// <summary>Updates this view model's state from a completed <see cref="ProcessingResult"/>.</summary>
@@ -78,6 +90,7 @@ public sealed partial class QueueItemViewModel : ObservableObject
         _lastResult          = result;
         Status               = result.Status;
         UsedOcr              = result.UsedOcrFallback;
+        UsedFallback         = result.UsedFallbackExtraction;
         RawExtractedText     = result.ExtractedRawText;
         _preProcessingReport = result.PreProcessingReport;
         DetectedCarrier      = result.DetectedCarrier;
@@ -91,22 +104,34 @@ public sealed partial class QueueItemViewModel : ObservableObject
                       or ProcessingStatus.PartialSuccess
                       or ProcessingStatus.Failed;
 
+        var belowThreshold = IsCompleted && result.Record is not null && Confidence < _confidenceThreshold;
+
         ConfidenceText = IsCompleted && result.Record is not null
-            ? $"{result.Record.ConfidenceScore:P0}"
+            ? belowThreshold
+                ? $"{result.Record.ConfidenceScore:P0} \u26A0"
+                : $"{result.Record.ConfidenceScore:P0}"
             : "\u2014";
 
-        ConfidenceColor = result.Record?.ConfidenceScore switch
-        {
-            >= 0.8 => "#217346",
-            >= 0.5 => "#C55A11",
-            > 0    => "#C00000",
-            _      => "#666666"
-        };
+        ConfidenceColor = belowThreshold
+            ? "#FFFFFF"
+            : result.Record?.ConfidenceScore switch
+            {
+                >= 0.8 => "#217346",
+                >= 0.5 => "#C55A11",
+                > 0    => "#C00000",
+                _      => "#666666"
+            };
+
+        ConfidenceBadgeBackground = belowThreshold ? "#7B5EA7" : "Transparent";
+        ConfidenceTooltip         = belowThreshold
+            ? "Below confidence threshold \u2014 will go to Review sheet"
+            : null;
 
         DurationText = IsCompleted
             ? $"{result.ProcessingDuration.TotalSeconds:0.#}s"
             : "\u2014";
 
+        OnPropertyChanged(nameof(BelowThreshold));
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(PreProcessingReport));
         OnPropertyChanged(nameof(WasPreProcessed));

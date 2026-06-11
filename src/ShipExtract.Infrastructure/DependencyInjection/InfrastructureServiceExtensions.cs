@@ -48,8 +48,9 @@ public static class InfrastructureServiceExtensions
         // PDF parsing
         services.AddSingleton<IPdfParser, PdfPigParser>();
 
-        // OCR (degrades gracefully if tessdata absent)
-        services.AddSingleton<IOcrService>(_ => new TesseractOcrService(tessDataPath));
+        // OCR (degrades gracefully if tessdata absent; language list from AppSettings)
+        services.AddSingleton<IOcrService>(_ =>
+            new TesseractOcrService(tessDataPath, appSettings.OcrLanguages));
 
         // AI extraction — Anthropic
         services.AddSingleton(anthropicSettings);

@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:converters="clr-namespace:ShipExtract.UI.Converters"
         Title="Settings &#x2014; ShipExtract"
-        Width="500" Height="680"
+        Width="500" Height="860"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource SurfaceBrush}">
@@ -293,8 +293,9 @@
                            Foreground="{StaticResource TextPrimaryBrush}"
                            Margin="0,0,0,8"/>
 
-                <Border Style="{StaticResource CardBorder}" Padding="16" Margin="0,0,0,16">
+                <Border Style="{StaticResource CardBorder}" Padding="16" Margin="0,0,0,12">
                     <StackPanel>
+                        <!-- Tessdata path row -->
                         <TextBlock Text="Tesseract Data Path"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    FontSize="12" Margin="0,0,0,4"/>
@@ -312,7 +313,6 @@
                                     Margin="8,0,0,0" Padding="10,6"
                                     Command="{Binding BrowseTessDataCommand}"/>
                         </Grid>
-                        <!-- TessData status -->
                         <TextBlock Text="{Binding TessDataStatusText, Mode=OneWay}"
                                    Margin="0,6,0,0" FontSize="11" FontWeight="SemiBold"
                                    Foreground="{StaticResource SuccessBrush}"
@@ -321,17 +321,186 @@
                                    Margin="0,6,0,0" FontSize="11"
                                    Foreground="{StaticResource WarningBrush}"
                                    Visibility="{Binding TessDataExists, Mode=OneWay, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
-
-                        <!-- Open Folder and Download links -->
-                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,12">
                             <Button Content="Open Folder"
                                     Style="{StaticResource LinkButton}"
                                     Command="{Binding OpenTessDataFolderCommand}"
                                     Margin="0,0,12,0"/>
-                            <Button Content="Download eng.traineddata &#x2192;"
-                                    Style="{StaticResource LinkButton}"
-                                    Command="{Binding DownloadTessDataCommand}"/>
                         </StackPanel>
+
+                        <Separator Background="{StaticResource SurfaceDarkBrush}" Margin="0,0,0,12"/>
+
+                        <!-- Language management -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="OCR Languages"
+                                       FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="Refresh Status"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Padding="8,4" FontSize="11"
+                                    Command="{Binding RefreshOcrStatusCommand}"/>
+                        </Grid>
+
+                        <!-- English row (always installed, always enabled) -->
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0" IsChecked="True" IsEnabled="False"
+                                      VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Grid.Column="1" Text="English (eng)"
+                                       FontSize="12" Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="&#x2713; Installed"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource SuccessBrush}"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding OcrEngInstalled, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                        Visibility="{Binding OcrEngInstalled, Mode=OneWay, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
+                                <TextBlock Text="&#x26A0; Not installed"
+                                           FontSize="11" Foreground="{StaticResource WarningBrush}"
+                                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <Button Content="Download"
+                                        Style="{StaticResource LinkButton}"
+                                        Command="{Binding DownloadLanguageFileCommand}"
+                                        CommandParameter="eng"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- German row -->
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0"
+                                      IsChecked="{Binding OcrDeuEnabled}"
+                                      IsEnabled="{Binding OcrDeuInstalled, Mode=OneWay}"
+                                      VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Grid.Column="1" Text="German (deu)"
+                                       FontSize="12" Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="&#x2713; Installed"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource SuccessBrush}"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding OcrDeuInstalled, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                        Visibility="{Binding OcrDeuInstalled, Mode=OneWay, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
+                                <TextBlock Text="&#x26A0; Not installed"
+                                           FontSize="11" Foreground="{StaticResource WarningBrush}"
+                                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <Button Content="Download"
+                                        Style="{StaticResource LinkButton}"
+                                        Command="{Binding DownloadLanguageFileCommand}"
+                                        CommandParameter="deu"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- French row -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0"
+                                      IsChecked="{Binding OcrFraEnabled}"
+                                      IsEnabled="{Binding OcrFraInstalled, Mode=OneWay}"
+                                      VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Grid.Column="1" Text="French (fra)"
+                                       FontSize="12" Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="&#x2713; Installed"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource SuccessBrush}"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding OcrFraInstalled, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                        Visibility="{Binding OcrFraInstalled, Mode=OneWay, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
+                                <TextBlock Text="&#x26A0; Not installed"
+                                           FontSize="11" Foreground="{StaticResource WarningBrush}"
+                                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <Button Content="Download"
+                                        Style="{StaticResource LinkButton}"
+                                        Command="{Binding DownloadLanguageFileCommand}"
+                                        CommandParameter="fra"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Active languages summary -->
+                        <TextBlock Text="{Binding OcrActiveLanguagesText, Mode=OneWay}"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="OCR language changes take effect after restarting the application."
+                                   FontSize="10" FontStyle="Italic"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,4,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Export Quality -->
+                <TextBlock Text="Export Quality"
+                           FontSize="14" FontWeight="Bold"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           Margin="0,4,0,8"/>
+
+                <Border Style="{StaticResource CardBorder}" Padding="16" Margin="0,0,0,16">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Minimum Confidence Threshold"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       FontSize="12" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding ConfidenceThresholdText, Mode=OneWay}"
+                                       FontSize="13" FontWeight="Bold"
+                                       Foreground="{StaticResource PrimaryBrush}"
+                                       VerticalAlignment="Center" Margin="8,0,0,0"/>
+                        </Grid>
+
+                        <Slider Minimum="0" Maximum="1"
+                                TickFrequency="0.05"
+                                IsSnapToTickEnabled="True"
+                                Value="{Binding ConfidenceThreshold}"
+                                Margin="0,4,0,4"/>
+
+                        <!-- Reference markers -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="50% — Permissive"
+                                       FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
+                                       HorizontalAlignment="Left"/>
+                            <TextBlock Grid.Column="1" Text="60% — Recommended"
+                                       FontSize="10" Foreground="{StaticResource AccentBrush}"
+                                       FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="70% — Strict"
+                                       FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
+                                       HorizontalAlignment="Right"/>
+                        </Grid>
+
+                        <TextBlock FontSize="11" TextWrapping="Wrap"
+                                   Foreground="{StaticResource TextSecondaryBrush}">
+                            Results below this threshold are exported to a separate
+                            <Run FontWeight="SemiBold">Review</Run> sheet instead of the main data sheet.
+                        </TextBlock>
                     </StackPanel>
                 </Border>
 

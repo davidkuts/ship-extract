@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using ShipExtract.Domain.Enums;
 using ShipExtract.Domain.Interfaces;
 using ShipExtract.Infrastructure.AI;
+using ShipExtract.Infrastructure.Ocr;
 using ShipExtract.Infrastructure.Settings;
 using ShipExtract.UI.Helpers;
 
@@ -57,6 +58,18 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string _ollamaModelStatusText = string.Empty;
     [ObservableProperty] private int _historyEntryCount;
     [ObservableProperty] private string _historyDirectory = string.Empty;
+
+    // ── Export Quality ────────────────────────────────────────────────────────
+    [ObservableProperty] private double _confidenceThreshold = 0.60;
+    [ObservableProperty] private string _confidenceThresholdText = "60%";
+
+    // ── OCR Languages ─────────────────────────────────────────────────────────
+    [ObservableProperty] private bool _ocrEngInstalled;
+    [ObservableProperty] private bool _ocrDeuInstalled;
+    [ObservableProperty] private bool _ocrDeuEnabled;
+    [ObservableProperty] private bool _ocrFraInstalled;
+    [ObservableProperty] private bool _ocrFraEnabled;
+    [ObservableProperty] private string _ocrActiveLanguagesText = "Active: English";
 
     /// <summary>Gets whether a saved confirmation message is currently displayed.</summary>
     public bool HasSavedMessage => !string.IsNullOrEmpty(SavedMessage);
@@ -112,9 +125,16 @@ public sealed partial class SettingsViewModel : ObservableObject
         ApiKey           = _credentialService.GetApiKey() ?? string.Empty;
         SelectedProvider = _appSettings.AiProvider;
         OllamaBaseUrl    = _appSettings.OllamaBaseUrl;
-        OllamaModel      = _appSettings.OllamaModel;
-        HistoryDirectory = _appSettings.HistoryDirectory;
+        OllamaModel          = _appSettings.OllamaModel;
+        HistoryDirectory     = _appSettings.HistoryDirectory;
+        ConfidenceThreshold  = _appSettings.MinimumConfidenceThreshold;
+        ConfidenceThresholdText = $"{_appSettings.MinimumConfidenceThreshold:P0}";
 
+        // Load OCR language enabled states
+        OcrDeuEnabled = _appSettings.OcrLanguages.Contains("deu", StringComparer.OrdinalIgnoreCase);
+        OcrFraEnabled = _appSettings.OcrLanguages.Contains("fra", StringComparer.OrdinalIgnoreCase);
+
+        RefreshOcrLanguageStatus();
         _ = LoadHistoryCountAsync();
     }
 
@@ -149,20 +169,30 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
 
         var settings = _settingsService.Load();
-        settings.TessDataDirectory      = TessDataPath;
-        settings.DefaultOutputDirectory = DefaultOutputDir;
-        settings.AiProvider             = SelectedProvider;
-        settings.OllamaBaseUrl          = OllamaBaseUrl;
-        settings.OllamaModel            = OllamaModel;
+        settings.TessDataDirectory          = TessDataPath;
+        settings.DefaultOutputDirectory     = DefaultOutputDir;
+        settings.AiProvider                 = SelectedProvider;
+        settings.OllamaBaseUrl              = OllamaBaseUrl;
+        settings.OllamaModel                = OllamaModel;
+        settings.MinimumConfidenceThreshold = ConfidenceThreshold;
+
+        // Build OCR language list — English always first
+        var langs = new List<string> { "eng" };
+        if (OcrDeuEnabled && OcrDeuInstalled) langs.Add("deu");
+        if (OcrFraEnabled && OcrFraInstalled) langs.Add("fra");
+        settings.OcrLanguages = langs;
+
         _settingsService.Save(settings);
 
         // Update the live AppSettings singleton so changes take effect immediately
-        _appSettings.AiProvider    = SelectedProvider;
-        _appSettings.OllamaBaseUrl = OllamaBaseUrl;
-        _appSettings.OllamaModel   = OllamaModel;
+        _appSettings.AiProvider                 = SelectedProvider;
+        _appSettings.OllamaBaseUrl              = OllamaBaseUrl;
+        _appSettings.OllamaModel                = OllamaModel;
+        _appSettings.MinimumConfidenceThreshold = ConfidenceThreshold;
+        _appSettings.OcrLanguages               = langs;
 
         _logger.LogInformation("Settings saved.");
-        SavedMessage = "Settings saved!";
+        SavedMessage = "Settings saved! OCR language changes take effect after restart.";
 
         await Task.Delay(3000);
         SavedMessage = string.Empty;
@@ -181,6 +211,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             TessDataPath = dialog.SelectedPath;
             RefreshTessDataStatus();
+            RefreshOcrLanguageStatus();
         }
     }
 
@@ -305,6 +336,67 @@ public sealed partial class SettingsViewModel : ObservableObject
         SavedMessage = "History cleared.";
         await Task.Delay(3000, ct);
         SavedMessage = string.Empty;
+    }
+
+    /// <summary>Updates the formatted threshold text whenever the slider value changes.</summary>
+    partial void OnConfidenceThresholdChanged(double value)
+    {
+        ConfidenceThresholdText = $"{value:P0}";
+    }
+
+    /// <summary>Checks which Tesseract language files are present in the current TessData directory.</summary>
+    public void RefreshOcrLanguageStatus()
+    {
+        _logger.LogDebug(
+            "Refreshing OCR status — TessDataPath: {Path}",
+            TessDataPath);
+
+        var knownLangs = new List<string> { "eng", "deu", "fra" };
+        var status = OcrLanguageChecker.Check(TessDataPath ?? string.Empty, knownLangs);
+
+        _logger.LogDebug(
+            "OCR check — Available: {Avail}, Missing: {Miss}",
+            string.Join(",", status.AvailableLanguages),
+            string.Join(",", status.MissingLanguages));
+
+        OcrEngInstalled = status.AvailableLanguages.Contains("eng", StringComparer.OrdinalIgnoreCase);
+        OcrDeuInstalled = status.AvailableLanguages.Contains("deu", StringComparer.OrdinalIgnoreCase);
+        OcrFraInstalled = status.AvailableLanguages.Contains("fra", StringComparer.OrdinalIgnoreCase);
+
+        // If a language was enabled but is no longer installed, disable it
+        if (!OcrDeuInstalled) OcrDeuEnabled = false;
+        if (!OcrFraInstalled) OcrFraEnabled = false;
+
+        var activeNames = new List<string> { "English" };
+        if (OcrDeuEnabled && OcrDeuInstalled) activeNames.Add("German");
+        if (OcrFraEnabled && OcrFraInstalled) activeNames.Add("French");
+        OcrActiveLanguagesText = "Active: " + string.Join(" + ", activeNames);
+
+        OnPropertyChanged(nameof(OcrEngInstalled));
+        OnPropertyChanged(nameof(OcrDeuInstalled));
+        OnPropertyChanged(nameof(OcrFraInstalled));
+        OnPropertyChanged(nameof(OcrActiveLanguagesText));
+    }
+
+    /// <summary>Re-checks OCR language file availability.</summary>
+    [RelayCommand]
+    private void RefreshOcrStatus()
+    {
+        RefreshOcrLanguageStatus();
+    }
+
+    /// <summary>Opens the browser to download a specific language's traineddata file.</summary>
+    [RelayCommand]
+    private void DownloadLanguageFile(string languageCode)
+    {
+        var url = OcrLanguageChecker.GetDownloadUrl(languageCode);
+        if (url is null) return;
+        try
+        {
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch { /* best effort */ }
     }
 
     /// <summary>Opens the browser to download eng.traineddata.</summary>

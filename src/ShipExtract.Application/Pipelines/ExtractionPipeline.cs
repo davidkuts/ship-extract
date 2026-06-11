@@ -165,7 +165,8 @@ public sealed class ExtractionPipeline
 
             // Step 4 — AI extraction (with one transient retry)
             var aiResponse = await CallAiWithRetryAsync(textForAi, detectedCarrier, ct);
-            result.RawAiResponse = aiResponse.RawJson;
+            result.RawAiResponse          = aiResponse.RawJson;
+            result.UsedFallbackExtraction = aiResponse.UsedFallbackExtraction;
 
             // Steps 5 & 6 — handle AI response
             if (aiResponse.Success && aiResponse.Record is not null)

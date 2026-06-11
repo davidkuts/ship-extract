@@ -10,7 +10,7 @@ namespace ShipExtract.Infrastructure.Export;
 
 /// <summary>
 /// Implements <see cref="IExportService"/> to export shipment results as a UTF-8 CSV file.
-/// The output includes a BOM so that Excel auto-detects encoding correctly.
+/// Results below the confidence threshold are written to a separate "_review" CSV alongside the main file.
 /// </summary>
 public sealed class CsvExportService : IExportService
 {
@@ -21,27 +21,66 @@ public sealed class CsvExportService : IExportService
     public Task ExportAsync(
         IReadOnlyList<ProcessingResult> results,
         string outputPath,
+        double confidenceThreshold = 0.60,
         CancellationToken ct = default) =>
-        Task.Run(() => WriteFile(results, outputPath, ct), ct);
+        Task.Run(() => WriteFiles(results, outputPath, confidenceThreshold, ct), ct);
 
-    private static void WriteFile(
-        IReadOnlyList<ProcessingResult> results, string outputPath, CancellationToken ct)
+    private static void WriteFiles(
+        IReadOnlyList<ProcessingResult> results,
+        string outputPath,
+        double confidenceThreshold,
+        CancellationToken ct)
     {
         var exportable = results
             .Where(r => r.Record is not null &&
                         r.Status is ProcessingStatus.Succeeded or ProcessingStatus.PartialSuccess)
             .ToList();
 
+        var aboveThreshold = exportable
+            .Where(r => r.MeetsConfidenceThreshold(confidenceThreshold))
+            .ToList();
+
+        var belowThreshold = exportable
+            .Where(r => !r.MeetsConfidenceThreshold(confidenceThreshold))
+            .ToList();
+
+        // Write main CSV (above-threshold results only)
+        WriteFile(aboveThreshold, outputPath, commentRow: null, ct);
+
+        // Write review CSV if there are below-threshold results
+        if (belowThreshold.Count > 0)
+        {
+            var ext        = Path.GetExtension(outputPath);
+            var nameNoExt  = Path.GetFileNameWithoutExtension(outputPath);
+            var dir        = Path.GetDirectoryName(outputPath) ?? string.Empty;
+            var reviewPath = Path.Combine(dir, $"{nameNoExt}_review{ext}");
+
+            var commentRow = $"# These results were below the confidence threshold of {confidenceThreshold:P0}";
+            WriteFile(belowThreshold, reviewPath, commentRow, ct);
+        }
+    }
+
+    private static void WriteFile(
+        List<ProcessingResult> rows,
+        string outputPath,
+        string? commentRow,
+        CancellationToken ct)
+    {
         using var writer = new StreamWriter(
             outputPath, append: false,
             encoding: new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
         using var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture));
 
+        if (commentRow is not null)
+        {
+            writer.WriteLine(commentRow);
+        }
+
         csv.Context.RegisterClassMap<CsvExportMap>();
         csv.WriteHeader<ShipmentCsvRow>();
         csv.NextRecord();
 
-        foreach (var result in exportable)
+        foreach (var result in rows)
         {
             ct.ThrowIfCancellationRequested();
             csv.WriteRecord(new ShipmentCsvRow(result));
@@ -81,6 +120,7 @@ internal sealed class ShipmentCsvRow
     public string  DocumentType     { get; }
     public double  ConfidenceScore  { get; }
     public bool    OcrUsed          { get; }
+    public bool    FallbackUsed     { get; }
     public string? SourceFile       { get; }
 
     public ShipmentCsvRow(ProcessingResult result)
@@ -116,6 +156,7 @@ internal sealed class ShipmentCsvRow
         DocumentType     = r.DocumentType.ToString();
         ConfidenceScore  = r.ConfidenceScore;
         OcrUsed          = result.UsedOcrFallback;
+        FallbackUsed     = result.UsedFallbackExtraction;
         SourceFile       = r.SourceFileName;
     }
 }
@@ -153,6 +194,7 @@ internal sealed class CsvExportMap : ClassMap<ShipmentCsvRow>
         Map(m => m.DocumentType).Name("Document Type").Index(25);
         Map(m => m.ConfidenceScore).Name("Confidence Score").Index(26);
         Map(m => m.OcrUsed).Name("OCR Used").Index(27);
-        Map(m => m.SourceFile).Name("Source File").Index(28);
+        Map(m => m.FallbackUsed).Name("Fallback Used").Index(28);
+        Map(m => m.SourceFile).Name("Source File").Index(29);
     }
 }
