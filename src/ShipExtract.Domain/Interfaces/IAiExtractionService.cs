@@ -1,5 +1,6 @@
 using ShipExtract.Domain.Enums;
 using ShipExtract.Domain.Models;
+using System.Collections.Generic;
 
 namespace ShipExtract.Domain.Interfaces;
 
@@ -42,4 +43,17 @@ public interface IAiExtractionService
         CarrierType carrier,
         CancellationToken ct = default) =>
         ExtractAsync(rawText, hint, ct);
+
+    /// <summary>
+    /// Custom-fields overload (v1.3). Passes user-defined custom fields to the prompt builder
+    /// so the AI can attempt to extract them in addition to the standard fields.
+    /// The default implementation ignores custom fields and delegates to the carrier-aware overload.
+    /// </summary>
+    Task<AiExtractionResponse> ExtractAsync(
+        string rawText,
+        DocumentType hint,
+        CarrierType carrier,
+        List<CustomField>? customFields,
+        CancellationToken ct = default) =>
+        ExtractAsync(rawText, hint, carrier, ct);
 }

@@ -39,6 +39,12 @@ public sealed partial class QueueItemViewModel : ObservableObject
     public bool BelowThreshold =>
         IsCompleted && Confidence < _confidenceThreshold;
 
+    /// <summary>Gets the tracking number from the last result, if available.</summary>
+    public string? TrackingNumber => _lastResult?.Record?.TrackingNumber;
+
+    /// <summary>Gets the consignee name from the last result, if available.</summary>
+    public string? ConsigneeName => _lastResult?.Record?.ConsigneeName;
+
     /// <summary>Gets the carrier detected from the document text.</summary>
     public CarrierType DetectedCarrier { get; private set; } = CarrierType.Unknown;
 
@@ -134,6 +140,8 @@ public sealed partial class QueueItemViewModel : ObservableObject
 
         OnPropertyChanged(nameof(BelowThreshold));
         OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(TrackingNumber));
+        OnPropertyChanged(nameof(ConsigneeName));
         OnPropertyChanged(nameof(PreProcessingReport));
         OnPropertyChanged(nameof(WasPreProcessed));
         OnPropertyChanged(nameof(PreProcessingSummaryText));

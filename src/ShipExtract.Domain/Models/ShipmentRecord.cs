@@ -109,4 +109,9 @@ public sealed class ShipmentRecord
 
     /// <summary>Carrier automatically detected from the document text before AI extraction.</summary>
     public CarrierType DetectedCarrier { get; set; } = CarrierType.Unknown;
+
+    // ── Custom Fields ──────────────────────────────────────────────────────
+
+    /// <summary>User-defined extra fields extracted by the AI based on the current custom-field configuration.</summary>
+    public List<CustomFieldValue> CustomFields { get; set; } = new();
 }

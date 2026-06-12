@@ -7,8 +7,17 @@
         xmlns:vm="clr-namespace:ShipExtract.UI.ViewModels"
         Title="{Binding WindowTitle, Mode=OneWay}"
         MinWidth="900" MinHeight="600"
-        WindowStartupLocation="CenterScreen"
-        Background="{StaticResource SurfaceBrush}">
+        Background="{StaticResource SurfaceBrush}"
+        KeyDown="Window_KeyDown">
+
+    <Window.InputBindings>
+        <KeyBinding Key="F5"  Command="{Binding StartProcessingCommand}" Modifiers=""/>
+        <KeyBinding Key="Delete"   Modifiers="" Command="{Binding RemoveFileCommand}" CommandParameter="{Binding SelectedQueueItem}"/>
+        <KeyBinding Key="Back"     Modifiers="" Command="{Binding RemoveFileCommand}" CommandParameter="{Binding SelectedQueueItem}"/>
+        <KeyBinding Key="E"   Modifiers="Ctrl"       Command="{Binding ExportExcelCommand}"/>
+        <KeyBinding Key="E"   Modifiers="Ctrl+Shift" Command="{Binding ExportCsvCommand}"/>
+        <KeyBinding Key="Escape"   Modifiers="" Command="{Binding HandleEscapeCommand}"/>
+    </Window.InputBindings>
 
     <Window.Resources>
         <converters:ProcessingStatusToColorConverter  x:Key="StatusToColor"/>
@@ -35,6 +44,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>  <!-- History -->
+                    <ColumnDefinition Width="Auto"/>  <!-- Custom Fields -->
                     <ColumnDefinition Width="Auto"/>  <!-- About -->
                     <ColumnDefinition Width="Auto"/>  <!-- Settings -->
                 </Grid.ColumnDefinitions>
@@ -67,8 +77,22 @@
                     <TextBlock Text="&#x1F4CB;" FontSize="14" Foreground="White"/>
                 </Button>
 
-                <!-- About button -->
+                <!-- Custom Fields button -->
                 <Button Grid.Column="2"
+                        VerticalAlignment="Center"
+                        Background="Transparent"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        Padding="8,6"
+                        Click="CustomFieldsButton_Click"
+                        ToolTip="Custom Fields"
+                        Margin="0,0,4,0">
+                    <TextBlock Text="&#x2295;" FontSize="16" Foreground="White"/>
+                </Button>
+
+                <!-- About button -->
+                <Button Grid.Column="3"
                         VerticalAlignment="Center"
                         Background="Transparent"
                         Foreground="White"
@@ -82,7 +106,7 @@
                 </Button>
 
                 <!-- Settings button -->
-                <Button Grid.Column="3"
+                <Button Grid.Column="4"
                         VerticalAlignment="Center"
                         Background="Transparent"
                         Foreground="White"
@@ -173,6 +197,40 @@
                             Command="{Binding DismissNetworkWarningCommand}"/>
                 </Grid>
             </Border>
+
+            <!-- Update available banner -->
+            <Border Background="#1F4E79"
+                    Padding="10,8"
+                    Visibility="{Binding ShowUpdateBanner, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding UpdateBannerText, Mode=OneWay}"
+                               Foreground="White" VerticalAlignment="Center" FontSize="13"/>
+                    <Button Grid.Column="1" Content="Download"
+                            Style="{StaticResource SecondaryButton}"
+                            Background="White" Foreground="#1F4E79"
+                            Padding="8,4" Margin="8,0,0,0"
+                            Command="{Binding OpenUpdatePageCommand}"/>
+                    <Button Grid.Column="2" Content="Skip version"
+                            Style="{StaticResource SecondaryButton}"
+                            Background="Transparent" Foreground="White"
+                            BorderBrush="White"
+                            Padding="8,4" Margin="8,0,0,0"
+                            Command="{Binding SkipUpdateVersionCommand}"/>
+                    <Button Grid.Column="3" Content="&#x2715;"
+                            Style="{StaticResource SecondaryButton}"
+                            Background="Transparent" Foreground="White"
+                            BorderBrush="White"
+                            Padding="6,4" Margin="8,0,0,0"
+                            Command="{Binding DismissUpdateBannerCommand}"/>
+                </Grid>
+            </Border>
         </StackPanel>
 
         <!-- ═══════════════════════════════════════
@@ -225,6 +283,22 @@
                             <Setter Property="Padding" Value="4,3"/>
                             <Setter Property="Background" Value="Transparent"/>
                             <Setter Property="BorderThickness" Value="0"/>
+                            <!-- Tag carries the parent DataContext (MainViewModel) into the ContextMenu -->
+                            <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ListView}}"/>
+                            <Setter Property="ContextMenu">
+                                <Setter.Value>
+                                    <ContextMenu>
+                                        <MenuItem Header="Open File Location"
+                                                  Command="{Binding PlacementTarget.Tag.OpenFileLocationCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                        <Separator/>
+                                        <MenuItem Header="Remove from Queue"
+                                                  InputGestureText="Del"
+                                                  Command="{Binding PlacementTarget.Tag.RemoveFileCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                    </ContextMenu>
+                                </Setter.Value>
+                            </Setter>
                             <Style.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
@@ -355,6 +429,38 @@
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
+
+                <!-- Empty state — shown when queue is empty -->
+                <Border DockPanel.Dock="Top"
+                        Visibility="{Binding ShowEmptyState, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                        Height="120"
+                        Margin="12,0,12,8">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Viewbox Width="40" Height="40" Margin="0,0,0,8">
+                            <Canvas Width="24" Height="24">
+                                <Path Fill="{StaticResource PrimaryLightBrush}" Opacity="0.45"
+                                      Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h3.56c.69 1.19 1.97 2 3.45 2s2.75-.81 3.45-2H19v3zm0-5h-4c0 1.1-.9 2-2 2s-2-.9-2-2H5V5h14v9z"/>
+                            </Canvas>
+                        </Viewbox>
+                        <TextBlock Text="No files yet"
+                                   FontSize="13" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,4"/>
+                        <TextBlock Text="Drop PDFs above or click to browse"
+                                   FontSize="11"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="Tip: Press F5 to start · Del to remove"
+                                   FontSize="10" FontStyle="Italic"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Opacity="0.5"
+                                   Margin="0,6,0,0"/>
+                    </StackPanel>
+                </Border>
+
             </DockPanel>
 
             <!-- ── RIGHT COLUMN ── -->
@@ -449,6 +555,7 @@
                             <Run Text="{Binding SelectedQueueItem.FileName, Mode=OneWay}"/>
                         </TextBlock>
                         <views:ResultPreviewPanel Result="{Binding SelectedResult, Mode=OneWay}"
+                                                  ConfidenceThreshold="{Binding ConfidenceThreshold, Mode=OneWay, FallbackValue=0.60}"
                                                   MaxHeight="260"/>
                     </StackPanel>
                 </Border>
@@ -498,18 +605,27 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Left: batch summary (visible after results) -->
+                <!-- Left: contextual status text -->
                 <TextBlock Grid.Column="0"
-                           Text="{Binding BatchSummaryText, Mode=OneWay}"
+                           Text="{Binding StatusBarLeftText, Mode=OneWay}"
                            VerticalAlignment="Center"
                            FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
-                           Visibility="{Binding HasResults, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
+                           TextTrimming="CharacterEllipsis"/>
+
+                <!-- Center: keyboard hints -->
+                <TextBlock Grid.Column="2"
+                           Text="F5 &#x00B7; process   Del &#x00B7; remove   Ctrl+E &#x00B7; export"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontSize="10" Opacity="0.45"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
 
                 <!-- Right: provider pill + version pill -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Width="7" Height="7" Margin="0,0,5,0"
                              Fill="{StaticResource PrimaryLightBrush}"/>
                     <TextBlock Text="{Binding ActiveProviderText, Mode=OneWay}"
@@ -520,6 +636,100 @@
                 </StackPanel>
             </Grid>
         </Border>
+
+        <!-- ═══════════════════════════════════════
+             Onboarding Overlay (shown once on first run)
+             ═══════════════════════════════════════ -->
+        <Grid x:Name="OnboardingOverlay"
+              Grid.RowSpan="4"
+              Panel.ZIndex="200"
+              Visibility="Collapsed"
+              Background="#BB001020">
+
+            <!-- Centred card -->
+            <Border HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="White"
+                    CornerRadius="12"
+                    Width="400"
+                    Padding="32,28">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.25"/>
+                </Border.Effect>
+                <StackPanel>
+                    <!-- Step icon area -->
+                    <Viewbox x:Name="OnboardingIcon" Width="56" Height="56"
+                             HorizontalAlignment="Center" Margin="0,0,0,16">
+                        <Canvas Width="24" Height="24">
+                            <Path x:Name="OnboardingIconPath"
+                                  Fill="{StaticResource PrimaryBrush}"
+                                  Data="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+                        </Canvas>
+                    </Viewbox>
+
+                    <!-- Step counter dots -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,16">
+                        <Ellipse x:Name="StepDot0" Width="8" Height="8" Margin="3,0"
+                                 Fill="{StaticResource PrimaryBrush}"/>
+                        <Ellipse x:Name="StepDot1" Width="8" Height="8" Margin="3,0"
+                                 Fill="{StaticResource SurfaceDarkBrush}"/>
+                        <Ellipse x:Name="StepDot2" Width="8" Height="8" Margin="3,0"
+                                 Fill="{StaticResource SurfaceDarkBrush}"/>
+                        <Ellipse x:Name="StepDot3" Width="8" Height="8" Margin="3,0"
+                                 Fill="{StaticResource SurfaceDarkBrush}"/>
+                    </StackPanel>
+
+                    <!-- Step title -->
+                    <TextBlock x:Name="OnboardingTitle"
+                               Text="Welcome to ShipExtract"
+                               FontSize="18" FontWeight="Bold"
+                               HorizontalAlignment="Center"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               Margin="0,0,0,10"/>
+
+                    <!-- Step description -->
+                    <TextBlock x:Name="OnboardingDesc"
+                               Text="ShipExtract uses AI to extract shipment data from PDF documents — tracking numbers, addresses, weights and more — automatically."
+                               FontSize="13"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               LineHeight="20"
+                               Margin="0,0,0,24"/>
+
+                    <!-- "Don't show again" checkbox -->
+                    <CheckBox x:Name="OnboardingDontShowChk"
+                              Content="Don&#x2019;t show this tour again"
+                              FontSize="11"
+                              Foreground="{StaticResource TextSecondaryBrush}"
+                              Margin="0,0,0,14"
+                              Checked="OnboardingDontShowChk_Changed"
+                              Unchecked="OnboardingDontShowChk_Changed"/>
+
+                    <!-- Navigation buttons -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="OnboardingSkipBtn"
+                                Grid.Column="0"
+                                Content="Skip tour"
+                                Style="{StaticResource LinkButton}"
+                                HorizontalAlignment="Left"
+                                Click="OnboardingSkip_Click"/>
+                        <Button x:Name="OnboardingNextBtn"
+                                Grid.Column="1"
+                                Content="Next &#x2192;"
+                                Style="{StaticResource PrimaryButton}"
+                                Padding="20,8"
+                                Click="OnboardingNext_Click"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
 
     </Grid>
 </Window>

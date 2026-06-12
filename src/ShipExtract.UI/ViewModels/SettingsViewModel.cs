@@ -1,4 +1,5 @@
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using WpfMessageBox = System.Windows.MessageBox;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -23,6 +24,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly IOllamaHealthService _ollamaHealthService;
     private readonly AppSettings _appSettings;
     private readonly IBatchHistoryService? _historyService;
+    private readonly IUpdateService? _updateService;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ApiKeyIsSet))]
@@ -58,10 +60,21 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string _ollamaModelStatusText = string.Empty;
     [ObservableProperty] private int _historyEntryCount;
     [ObservableProperty] private string _historyDirectory = string.Empty;
+    [ObservableProperty] private int _customFieldCount;
+
+    // ── Updates ───────────────────────────────────────────────────────────────
+    [ObservableProperty] private bool _checkForUpdates;
+    [ObservableProperty] private string _currentVersionText = string.Empty;
+    [ObservableProperty] private bool _updateAvailable;
+    [ObservableProperty] private string _latestVersionText = string.Empty;
+    [ObservableProperty] private bool _isCheckingForUpdates;
 
     // ── Export Quality ────────────────────────────────────────────────────────
     [ObservableProperty] private double _confidenceThreshold = 0.60;
     [ObservableProperty] private string _confidenceThresholdText = "60%";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ExportFilenamePreview))]
+    private string _exportFilePrefix = "ShipExtract";
 
     // ── OCR Languages ─────────────────────────────────────────────────────────
     [ObservableProperty] private bool _ocrEngInstalled;
@@ -73,6 +86,30 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Gets whether a saved confirmation message is currently displayed.</summary>
     public bool HasSavedMessage => !string.IsNullOrEmpty(SavedMessage);
+
+    /// <summary>Gets or sets whether the onboarding tour will be shown on next launch (inverse of OnboardingCompleted).</summary>
+    public bool ShowOnboardingTour
+    {
+        get => !_appSettings.OnboardingCompleted;
+        set
+        {
+            _appSettings.OnboardingCompleted = !value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Raised when the user requests an immediate tour replay; the handler should close Settings and show the tour.</summary>
+    public event EventHandler? TourReplayRequested;
+
+    /// <summary>Gets a preview of what the export filename will look like.</summary>
+    public string ExportFilenamePreview
+    {
+        get
+        {
+            var prefix = SanitizeExportPrefix(ExportFilePrefix);
+            return $"\u2192 {prefix}_20250611_143022.xlsx";
+        }
+    }
 
     /// <summary>Gets the model name from the current settings (read-only).</summary>
     public string ModelName => _anthropicSettings.Model;
@@ -108,7 +145,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         IAiExtractionService aiService,
         IOllamaHealthService ollamaHealthService,
         AppSettings appSettings,
-        IBatchHistoryService? historyService = null)
+        IBatchHistoryService? historyService = null,
+        IUpdateService? updateService = null)
     {
         _settingsService      = settingsService;
         _credentialService    = credentialService;
@@ -118,6 +156,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _ollamaHealthService  = ollamaHealthService;
         _appSettings          = appSettings;
         _historyService       = historyService;
+        _updateService        = updateService;
 
         var settings = _settingsService.Load();
         TessDataPath     = settings.TessDataDirectory;
@@ -129,13 +168,28 @@ public sealed partial class SettingsViewModel : ObservableObject
         HistoryDirectory     = _appSettings.HistoryDirectory;
         ConfidenceThreshold  = _appSettings.MinimumConfidenceThreshold;
         ConfidenceThresholdText = $"{_appSettings.MinimumConfidenceThreshold:P0}";
+        ExportFilePrefix        = settings.ExportFilePrefix;
 
         // Load OCR language enabled states
         OcrDeuEnabled = _appSettings.OcrLanguages.Contains("deu", StringComparer.OrdinalIgnoreCase);
         OcrFraEnabled = _appSettings.OcrLanguages.Contains("fra", StringComparer.OrdinalIgnoreCase);
 
+        CustomFieldCount = _appSettings.CustomFields.Count(f => f.IsEnabled);
+
+        // Update section
+        CheckForUpdates    = _appSettings.CheckForUpdatesOnStartup;
+        CurrentVersionText = "v" + (Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "1.0.0");
+        LatestVersionText  = string.Empty;
+        UpdateAvailable    = false;
+
         RefreshOcrLanguageStatus();
         _ = LoadHistoryCountAsync();
+    }
+
+    /// <summary>Refreshes the custom field count from the live AppSettings.</summary>
+    public void RefreshCustomFieldCount()
+    {
+        CustomFieldCount = _appSettings.CustomFields.Count(f => f.IsEnabled);
     }
 
     private async Task LoadHistoryCountAsync()
@@ -168,28 +222,24 @@ public sealed partial class SettingsViewModel : ObservableObject
             _logger.LogInformation("API key updated in credential store.");
         }
 
-        var settings = _settingsService.Load();
-        settings.TessDataDirectory          = TessDataPath;
-        settings.DefaultOutputDirectory     = DefaultOutputDir;
-        settings.AiProvider                 = SelectedProvider;
-        settings.OllamaBaseUrl              = OllamaBaseUrl;
-        settings.OllamaModel                = OllamaModel;
-        settings.MinimumConfidenceThreshold = ConfidenceThreshold;
-
         // Build OCR language list — English always first
         var langs = new List<string> { "eng" };
         if (OcrDeuEnabled && OcrDeuInstalled) langs.Add("deu");
         if (OcrFraEnabled && OcrFraInstalled) langs.Add("fra");
-        settings.OcrLanguages = langs;
 
-        _settingsService.Save(settings);
-
-        // Update the live AppSettings singleton so changes take effect immediately
+        // Update the live AppSettings singleton with all ViewModel values, then persist it once.
+        _appSettings.TessDataDirectory          = TessDataPath;
+        _appSettings.DefaultOutputDirectory     = DefaultOutputDir;
         _appSettings.AiProvider                 = SelectedProvider;
         _appSettings.OllamaBaseUrl              = OllamaBaseUrl;
         _appSettings.OllamaModel                = OllamaModel;
         _appSettings.MinimumConfidenceThreshold = ConfidenceThreshold;
         _appSettings.OcrLanguages               = langs;
+        _appSettings.ExportFilePrefix           = ExportFilePrefix;
+        // OnboardingCompleted is already up-to-date via ShowOnboardingTour setter
+        // CheckForUpdatesOnStartup is kept in sync by OnCheckForUpdatesChanged partial
+
+        _settingsService.Save(_appSettings);
 
         _logger.LogInformation("Settings saved.");
         SavedMessage = "Settings saved! OCR language changes take effect after restart.";
@@ -344,6 +394,23 @@ public sealed partial class SettingsViewModel : ObservableObject
         ConfidenceThresholdText = $"{value:P0}";
     }
 
+    /// <summary>Marks the tour as not completed and immediately raises <see cref="TourReplayRequested"/>.</summary>
+    [RelayCommand]
+    private void ReplayTour()
+    {
+        _appSettings.OnboardingCompleted = false;
+        _settingsService.Save(_appSettings);
+        OnPropertyChanged(nameof(ShowOnboardingTour));
+        TourReplayRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static string SanitizeExportPrefix(string prefix)
+    {
+        if (string.IsNullOrWhiteSpace(prefix)) return "ShipExtract";
+        var invalid = System.IO.Path.GetInvalidFileNameChars();
+        return string.Concat(prefix.Select(c => invalid.Contains(c) ? '_' : c));
+    }
+
     /// <summary>Checks which Tesseract language files are present in the current TessData directory.</summary>
     public void RefreshOcrLanguageStatus()
     {
@@ -397,6 +464,50 @@ public sealed partial class SettingsViewModel : ObservableObject
                 new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
         }
         catch { /* best effort */ }
+    }
+
+    /// <summary>Checks for updates immediately when the user clicks the button in Settings.</summary>
+    [RelayCommand]
+    private async Task CheckForUpdatesNow(CancellationToken ct)
+    {
+        if (_updateService is null || IsCheckingForUpdates) return;
+        IsCheckingForUpdates = true;
+        LatestVersionText    = string.Empty;
+        UpdateAvailable      = false;
+
+        try
+        {
+            var info = await _updateService.CheckForUpdateAsync(ct);
+            if (info is null)
+            {
+                LatestVersionText = "Could not reach update server.";
+            }
+            else if (info.IsUpdateAvailable)
+            {
+                LatestVersionText = $"v{info.LatestVersion} available";
+                UpdateAvailable   = true;
+                _appSettings.LastUpdateCheckDate = DateTime.UtcNow;
+                _settingsService.Save(_appSettings);
+            }
+            else
+            {
+                LatestVersionText = "You are on the latest version.";
+            }
+        }
+        catch
+        {
+            LatestVersionText = "Update check failed.";
+        }
+        finally
+        {
+            IsCheckingForUpdates = false;
+        }
+    }
+
+    /// <summary>Keeps the AppSettings in sync when the checkbox changes before Save is clicked.</summary>
+    partial void OnCheckForUpdatesChanged(bool value)
+    {
+        _appSettings.CheckForUpdatesOnStartup = value;
     }
 
     /// <summary>Opens the browser to download eng.traineddata.</summary>

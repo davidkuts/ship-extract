@@ -20,6 +20,7 @@ public sealed class ExtractionPipeline
     private readonly ITextPreProcessingPipeline? _preProcessingPipeline;
     private readonly ICarrierDetector? _carrierDetector;
     private readonly ILoggingService _logger;
+    private readonly List<CustomField>? _customFields;
 
     /// <summary>Initialises a new instance of <see cref="ExtractionPipeline"/>.</summary>
     public ExtractionPipeline(
@@ -28,7 +29,8 @@ public sealed class ExtractionPipeline
         IAiExtractionService aiService,
         ILoggingService logger,
         ITextPreProcessingPipeline? preProcessingPipeline = null,
-        ICarrierDetector? carrierDetector = null)
+        ICarrierDetector? carrierDetector = null,
+        List<CustomField>? customFields = null)
     {
         _pdfParser             = pdfParser;
         _ocrService            = ocrService;
@@ -36,6 +38,7 @@ public sealed class ExtractionPipeline
         _logger                = logger;
         _preProcessingPipeline = preProcessingPipeline;
         _carrierDetector       = carrierDetector;
+        _customFields          = customFields;
     }
 
     /// <summary>
@@ -305,18 +308,20 @@ public sealed class ExtractionPipeline
     private async Task<Domain.Interfaces.AiExtractionResponse> CallAiWithRetryAsync(
         string text, CarrierType carrier, CancellationToken ct)
     {
+        var activeCustomFields = _customFields?.Where(f => f.IsEnabled).ToList();
+
         try
         {
-            // Prefer carrier-aware overload; fall back to base overload when the
-            // carrier-aware version is not set up (e.g. existing unit-test mocks).
-            var response = await _aiService.ExtractAsync(text, Domain.Enums.DocumentType.Unknown, carrier, ct);
+            var response = await _aiService.ExtractAsync(
+                text, Domain.Enums.DocumentType.Unknown, carrier, activeCustomFields, ct);
             return response ?? await _aiService.ExtractAsync(text, Domain.Enums.DocumentType.Unknown, ct);
         }
         catch (Exception ex) when (!ct.IsCancellationRequested && IsTransientAiError(ex.Message))
         {
             _logger.LogWarning("Transient AI error — retrying once after 5 s. Reason: {Reason}", ex.Message);
             await Task.Delay(5000, ct);
-            var response = await _aiService.ExtractAsync(text, Domain.Enums.DocumentType.Unknown, carrier, ct);
+            var response = await _aiService.ExtractAsync(
+                text, Domain.Enums.DocumentType.Unknown, carrier, activeCustomFields, ct);
             return response ?? await _aiService.ExtractAsync(text, Domain.Enums.DocumentType.Unknown, ct);
         }
     }

@@ -32,4 +32,12 @@ internal sealed class ShipmentExtractionDto
     [JsonPropertyName("freightCost")]        public decimal? FreightCost { get; set; }
     [JsonPropertyName("confidenceScore")]    public double? ConfidenceScore { get; set; }
     [JsonPropertyName("documentType")]       public string? DocumentType { get; set; }
+    [JsonPropertyName("customFields")]       public List<CustomFieldDto>? CustomFields { get; set; }
+}
+
+/// <summary>One entry in the AI's <c>customFields</c> array response.</summary>
+internal sealed class CustomFieldDto
+{
+    [JsonPropertyName("name")]  public string? Name  { get; set; }
+    [JsonPropertyName("value")] public string? Value { get; set; }
 }

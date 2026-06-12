@@ -515,7 +515,7 @@
                         <TextBlock Text="Default Output Directory"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    FontSize="12" Margin="0,0,0,4"/>
-                        <Grid>
+                        <Grid Margin="0,0,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
@@ -529,7 +529,79 @@
                                     Margin="8,0,0,0" Padding="10,6"
                                     Command="{Binding BrowseOutputDirCommand}"/>
                         </Grid>
+
+                        <TextBlock Text="Export Filename Prefix"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="12" Margin="0,12,0,4"/>
+                        <TextBox Text="{Binding ExportFilePrefix, UpdateSourceTrigger=PropertyChanged}"
+                                 Height="32" Padding="8,4"
+                                 BorderBrush="{StaticResource SurfaceDarkBrush}"/>
+                        <TextBlock Text="{Binding ExportFilenamePreview, Mode=OneWay}"
+                                   FontSize="11" FontStyle="Italic"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,4,0,0"/>
+
+                        <Separator Background="{StaticResource SurfaceDarkBrush}" Margin="0,12,0,12"/>
+
+                        <TextBlock Text="Onboarding Tour"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="12" Margin="0,0,0,6"/>
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <CheckBox Content="Show tour on next startup"
+                                          IsChecked="{Binding ShowOnboardingTour}"
+                                          FontSize="12"/>
+                                <TextBlock FontSize="11" Margin="20,3,0,0"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap">
+                                    The guided tour shown on first launch. Re-enable to show it again.
+                                </TextBlock>
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Content="Replay Tour Now"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Padding="10,5"
+                                    Margin="12,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding ReplayTourCommand}"/>
+                        </Grid>
                     </StackPanel>
+                </Border>
+
+                <!-- Custom Fields -->
+                <TextBlock Text="Custom Fields"
+                           FontSize="14" FontWeight="Bold"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           Margin="0,16,0,8"/>
+
+                <Border Style="{StaticResource CardBorder}" Padding="16" Margin="0,0,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock FontSize="12" Foreground="{StaticResource TextPrimaryBrush}">
+                                <Run Text="{Binding CustomFieldCount, Mode=OneWay}"/>
+                                <Run Text=" custom field(s) active"/>
+                            </TextBlock>
+                            <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                       Margin="0,3,0,0" TextWrapping="Wrap">
+                                Add extra fields for the AI to extract from each document (e.g. PO Number, Invoice Number).
+                            </TextBlock>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Content="Edit Fields"
+                                Style="{StaticResource SecondaryButton}"
+                                Padding="10,5"
+                                Margin="12,0,0,0"
+                                VerticalAlignment="Center"
+                                Click="EditCustomFields_Click"/>
+                    </Grid>
                 </Border>
 
                 <!-- History -->
@@ -571,6 +643,58 @@
                                 Padding="10,5"
                                 Foreground="{StaticResource AccentBrush}"
                                 Command="{Binding ClearHistoryCommand}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Updates -->
+                <TextBlock Text="Updates"
+                           FontSize="14" FontWeight="Bold"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           Margin="0,16,0,8"/>
+
+                <Border Style="{StaticResource CardBorder}" Padding="16">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <CheckBox Content="Check for updates on startup"
+                                          IsChecked="{Binding CheckForUpdates}"
+                                          FontSize="12"/>
+                                <TextBlock Margin="20,3,0,0" FontSize="11"
+                                           Foreground="{StaticResource TextSecondaryBrush}">
+                                    Current version: <Run Text="{Binding CurrentVersionText, Mode=OneWay}" FontWeight="SemiBold"/>
+                                </TextBlock>
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Content="Check Now"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Padding="10,5" Margin="12,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding CheckForUpdatesNowCommand}"/>
+                        </Grid>
+
+                        <!-- Check result -->
+                        <TextBlock Text="{Binding LatestVersionText, Mode=OneWay}"
+                                   FontSize="12" FontWeight="SemiBold"
+                                   Visibility="{Binding LatestVersionText, Mode=OneWay, Converter={StaticResource NullToVisibility}}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding UpdateAvailable, Mode=OneWay}" Value="False">
+                                            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <TextBlock Text="Checking..."
+                                   FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                   Visibility="{Binding IsCheckingForUpdates, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
                     </StackPanel>
                 </Border>
 

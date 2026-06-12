@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text;
@@ -43,19 +44,29 @@ public sealed class OllamaExtractionService : IAiExtractionService
         DocumentType hint,
         CarrierType carrier,
         CancellationToken ct = default) =>
-        ExtractCoreAsync(rawText, hint, carrier, ct);
+        ExtractCoreAsync(rawText, hint, carrier, null, ct);
+
+    /// <inheritdoc/>
+    public Task<AiExtractionResponse> ExtractAsync(
+        string rawText,
+        DocumentType hint,
+        CarrierType carrier,
+        List<CustomField>? customFields,
+        CancellationToken ct = default) =>
+        ExtractCoreAsync(rawText, hint, carrier, customFields, ct);
 
     /// <inheritdoc/>
     public async Task<AiExtractionResponse> ExtractAsync(
         string rawText,
         DocumentType hint = DocumentType.Unknown,
         CancellationToken ct = default) =>
-        await ExtractCoreAsync(rawText, hint, CarrierType.Unknown, ct);
+        await ExtractCoreAsync(rawText, hint, CarrierType.Unknown, null, ct);
 
     private async Task<AiExtractionResponse> ExtractCoreAsync(
         string rawText,
         DocumentType hint,
         CarrierType carrier,
+        List<CustomField>? customFields,
         CancellationToken ct)
     {
         var baseUrl = _settings.OllamaBaseUrl?.Trim().TrimEnd('/');
@@ -88,7 +99,7 @@ public sealed class OllamaExtractionService : IAiExtractionService
         }
 
         // Step 2 — build combined prompt (Ollama-specific, more explicit than Anthropic version)
-        var prompt = ExtractionPromptBuilder.BuildOllamaPrompt(rawText, hint, carrier);
+        var prompt = ExtractionPromptBuilder.BuildOllamaPrompt(rawText, hint, carrier, customFields);
 
         // Step 3 — POST to /api/generate
         string rawResponse;
@@ -107,7 +118,7 @@ public sealed class OllamaExtractionService : IAiExtractionService
 
         // Steps 4–8 — parse and optionally repair
         var cleaned = ExtractJsonFromResponse(rawResponse);
-        var parsed  = TryParseResponse(cleaned, rawResponse);
+        var parsed  = TryParseResponse(cleaned, rawResponse, customFields);
         if (parsed is not null)
         {
             _logger.LogDebug(
@@ -136,7 +147,7 @@ public sealed class OllamaExtractionService : IAiExtractionService
         {
             var repaired = await GenerateAsync(baseUrl, repairPrompt, ct).ConfigureAwait(false);
             repaired = ExtractJsonFromResponse(repaired);
-            var repairResult = TryParseResponse(repaired, rawResponse);
+            var repairResult = TryParseResponse(repaired, rawResponse, customFields);
             if (repairResult is not null) return repairResult;
 
             // Attempt 3 — minimal fallback prompt.
@@ -272,12 +283,12 @@ public sealed class OllamaExtractionService : IAiExtractionService
         return text;
     }
 
-    private static AiExtractionResponse? TryParseResponse(string json, string rawResponse)
+    private static AiExtractionResponse? TryParseResponse(string json, string rawResponse, List<CustomField>? customFields = null)
     {
         try
         {
             var dto = JsonSerializer.Deserialize<ShipmentExtractionDto>(json, JsonOptions);
-            return dto is null ? null : BuildSuccess(dto, rawResponse);
+            return dto is null ? null : BuildSuccess(dto, rawResponse, customFields);
         }
         catch (JsonException)
         {
@@ -285,7 +296,7 @@ public sealed class OllamaExtractionService : IAiExtractionService
         }
     }
 
-    private static AiExtractionResponse BuildSuccess(ShipmentExtractionDto dto, string rawJson)
+    private static AiExtractionResponse BuildSuccess(ShipmentExtractionDto dto, string rawJson, List<CustomField>? customFields = null)
     {
         var record = new ShipmentRecord
         {
@@ -317,7 +328,30 @@ public sealed class OllamaExtractionService : IAiExtractionService
             DocumentType          = ParseDocumentType(dto.DocumentType),
         };
         record.ConfidenceScore = ComputeConfidence(record);
+        record.CustomFields    = MapCustomFields(dto.CustomFields, customFields);
         return new AiExtractionResponse(record, record.ConfidenceScore, rawJson, true, null);
+    }
+
+    private static List<CustomFieldValue> MapCustomFields(
+        List<CustomFieldDto>? dtoFields, List<CustomField>? requestedFields)
+    {
+        var result = new List<CustomFieldValue>();
+        if (requestedFields is null || requestedFields.Count == 0) return result;
+
+        foreach (var requested in requestedFields.Where(f => f.IsEnabled && !string.IsNullOrWhiteSpace(f.Name)))
+        {
+            var matched = dtoFields?.FirstOrDefault(
+                d => string.Equals(d.Name, requested.Name, StringComparison.OrdinalIgnoreCase));
+
+            result.Add(new CustomFieldValue
+            {
+                FieldId   = requested.Id,
+                FieldName = requested.Name,
+                Value     = matched?.Value ?? requested.DefaultValue
+            });
+        }
+
+        return result;
     }
 
     private static double ComputeConfidence(ShipmentRecord record)

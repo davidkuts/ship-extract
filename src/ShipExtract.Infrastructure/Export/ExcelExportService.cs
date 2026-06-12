@@ -61,23 +61,33 @@ public sealed class ExcelExportService : IExportService
             .Where(r => !r.MeetsConfidenceThreshold(confidenceThreshold))
             .ToList();
 
+        // Collect all unique custom field names across all results (alphabetically sorted)
+        var customFieldNames = exportable
+            .SelectMany(r => r.Record!.CustomFields)
+            .Select(f => f.FieldName)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(n => n)
+            .ToList();
+
         using var wb = new XLWorkbook();
-        WriteShipmentsSheet(wb, aboveThreshold, ct);
+        WriteShipmentsSheet(wb, aboveThreshold, customFieldNames, ct);
 
         if (belowThreshold.Count > 0)
-            WriteReviewRequiredSheet(wb, belowThreshold, confidenceThreshold, ct);
+            WriteReviewRequiredSheet(wb, belowThreshold, confidenceThreshold, customFieldNames, ct);
 
         WriteProcessingLogSheet(wb, results, confidenceThreshold, ct);
         wb.SaveAs(outputPath);
     }
 
     private static void WriteShipmentsSheet(
-        XLWorkbook wb, List<ProcessingResult> rows, CancellationToken ct)
+        XLWorkbook wb, List<ProcessingResult> rows, List<string> customFieldNames, CancellationToken ct)
     {
         var ws = wb.Worksheets.Add("Shipments");
+        var allHeaders = ShipmentHeaders.Concat(customFieldNames).ToArray();
 
-        for (int i = 0; i < ShipmentHeaders.Length; i++)
-            ws.Cell(1, i + 1).Value = ShipmentHeaders[i];
+        for (int i = 0; i < allHeaders.Length; i++)
+            ws.Cell(1, i + 1).Value = allHeaders[i];
 
         StyleHeaderRow(ws.Row(1), "#1F4E79");
         ws.SheetView.FreezeRows(1);
@@ -86,13 +96,13 @@ public sealed class ExcelExportService : IExportService
         foreach (var result in rows)
         {
             ct.ThrowIfCancellationRequested();
-            WriteShipmentRow(ws, row, result);
+            WriteShipmentRow(ws, row, result, customFieldNames);
             row++;
         }
 
         if (rows.Count > 0)
         {
-            var range = ws.Range(1, 1, row - 1, ShipmentHeaders.Length);
+            var range = ws.Range(1, 1, row - 1, allHeaders.Length);
             var table = range.CreateTable("ShipmentsTable");
             table.Theme = XLTableTheme.TableStyleMedium2;
         }
@@ -101,13 +111,15 @@ public sealed class ExcelExportService : IExportService
     }
 
     private static void WriteReviewRequiredSheet(
-        XLWorkbook wb, List<ProcessingResult> rows, double confidenceThreshold, CancellationToken ct)
+        XLWorkbook wb, List<ProcessingResult> rows, double confidenceThreshold,
+        List<string> customFieldNames, CancellationToken ct)
     {
         var ws = wb.Worksheets.Add("Review Required");
+        var allHeaders = ShipmentHeaders.Concat(customFieldNames).ToArray();
 
         // Header row — purple
-        for (int i = 0; i < ShipmentHeaders.Length; i++)
-            ws.Cell(1, i + 1).Value = ShipmentHeaders[i];
+        for (int i = 0; i < allHeaders.Length; i++)
+            ws.Cell(1, i + 1).Value = allHeaders[i];
         StyleHeaderRow(ws.Row(1), "#7B5EA7");
         ws.SheetView.FreezeRows(1);
 
@@ -116,7 +128,7 @@ public sealed class ExcelExportService : IExportService
             $"These {rows.Count} result(s) were below the {confidenceThreshold:P0} confidence threshold and require manual review.";
         ws.Cell(2, 1).Style.Font.Italic = true;
         ws.Cell(2, 1).Style.Font.FontColor = XLColor.FromHtml("#7B5EA7");
-        var noteRange = ws.Range(2, 1, 2, ShipmentHeaders.Length);
+        var noteRange = ws.Range(2, 1, 2, allHeaders.Length);
         noteRange.Merge();
 
         // Data rows start at row 3
@@ -124,14 +136,15 @@ public sealed class ExcelExportService : IExportService
         foreach (var result in rows)
         {
             ct.ThrowIfCancellationRequested();
-            WriteShipmentRow(ws, row, result);
+            WriteShipmentRow(ws, row, result, customFieldNames);
             row++;
         }
 
         ws.Columns().AdjustToContents();
     }
 
-    private static void WriteShipmentRow(IXLWorksheet ws, int row, ProcessingResult result)
+    private static void WriteShipmentRow(
+        IXLWorksheet ws, int row, ProcessingResult result, List<string>? customFieldNames = null)
     {
         var r = result.Record!;
 
@@ -166,6 +179,18 @@ public sealed class ExcelExportService : IExportService
         ws.Cell(row, 27).Value = r.ConfidenceScore;
         ws.Cell(row, 28).Value = result.UsedOcrFallback;
         ws.Cell(row, 29).Value = r.SourceFileName      ?? string.Empty;
+
+        // Dynamic custom field columns (col 30+)
+        if (customFieldNames is { Count: > 0 })
+        {
+            for (int i = 0; i < customFieldNames.Count; i++)
+            {
+                var fieldName = customFieldNames[i];
+                var cfv = r.CustomFields.FirstOrDefault(
+                    c => string.Equals(c.FieldName, fieldName, StringComparison.OrdinalIgnoreCase));
+                ws.Cell(row, 30 + i).Value = cfv?.Value ?? string.Empty;
+            }
+        }
     }
 
     private static void WriteProcessingLogSheet(
