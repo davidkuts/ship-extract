@@ -1,7 +1,10 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using ShipExtract.Domain.Interfaces;
 using ShipExtract.Infrastructure.AI;
+using ShipExtract.Infrastructure.Settings;
+using ShipExtract.UI.DependencyInjection;
 using ShipExtract.UI.ViewModels;
 
 namespace ShipExtract.UI.Views;
@@ -21,6 +24,13 @@ public partial class SettingsWindow : Window
 
         // Initialise the PasswordBox from the view model
         ApiKeyBox.Password = _vm.ApiKey;
+
+        // Wire the tour-replay event: close Settings and ask MainWindow to show the overlay
+        _vm.TourReplayRequested += (_, _) =>
+        {
+            Close();
+            (Owner as MainWindow)?.ShowOnboardingOverlay();
+        };
     }
 
     private void ApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e)
@@ -84,5 +94,14 @@ public partial class SettingsWindow : Window
                 "https://ollama.com") { UseShellExecute = true });
         }
         catch { }
+    }
+
+    private void EditCustomFields_Click(object sender, RoutedEventArgs e)
+    {
+        var appSettings     = ServiceLocator.Get<AppSettings>();
+        var settingsService = ServiceLocator.Get<ISettingsService>();
+        var win = new CustomFieldsWindow(appSettings, settingsService) { Owner = this };
+        if (win.ShowDialog() == true)
+            _vm.RefreshCustomFieldCount();
     }
 }

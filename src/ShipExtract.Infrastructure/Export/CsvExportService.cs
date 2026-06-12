@@ -44,8 +44,17 @@ public sealed class CsvExportService : IExportService
             .Where(r => !r.MeetsConfidenceThreshold(confidenceThreshold))
             .ToList();
 
+        // Collect all unique custom field names across all results (alphabetically sorted)
+        var customFieldNames = exportable
+            .SelectMany(r => r.Record!.CustomFields)
+            .Select(f => f.FieldName)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(n => n)
+            .ToList();
+
         // Write main CSV (above-threshold results only)
-        WriteFile(aboveThreshold, outputPath, commentRow: null, ct);
+        WriteFile(aboveThreshold, outputPath, commentRow: null, customFieldNames, ct);
 
         // Write review CSV if there are below-threshold results
         if (belowThreshold.Count > 0)
@@ -56,7 +65,7 @@ public sealed class CsvExportService : IExportService
             var reviewPath = Path.Combine(dir, $"{nameNoExt}_review{ext}");
 
             var commentRow = $"# These results were below the confidence threshold of {confidenceThreshold:P0}";
-            WriteFile(belowThreshold, reviewPath, commentRow, ct);
+            WriteFile(belowThreshold, reviewPath, commentRow, customFieldNames, ct);
         }
     }
 
@@ -64,6 +73,7 @@ public sealed class CsvExportService : IExportService
         List<ProcessingResult> rows,
         string outputPath,
         string? commentRow,
+        List<string> customFieldNames,
         CancellationToken ct)
     {
         using var writer = new StreamWriter(
@@ -72,19 +82,97 @@ public sealed class CsvExportService : IExportService
         using var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture));
 
         if (commentRow is not null)
-        {
             writer.WriteLine(commentRow);
-        }
 
-        csv.Context.RegisterClassMap<CsvExportMap>();
-        csv.WriteHeader<ShipmentCsvRow>();
-        csv.NextRecord();
-
-        foreach (var result in rows)
+        if (customFieldNames.Count == 0)
         {
-            ct.ThrowIfCancellationRequested();
-            csv.WriteRecord(new ShipmentCsvRow(result));
+            // Fast path — use the static class map when there are no custom fields
+            csv.Context.RegisterClassMap<CsvExportMap>();
+            csv.WriteHeader<ShipmentCsvRow>();
             csv.NextRecord();
+
+            foreach (var result in rows)
+            {
+                ct.ThrowIfCancellationRequested();
+                csv.WriteRecord(new ShipmentCsvRow(result));
+                csv.NextRecord();
+            }
+        }
+        else
+        {
+            // Dynamic path — write headers and values field-by-field
+            WriteHeaderRow(csv, customFieldNames);
+            csv.NextRecord();
+
+            foreach (var result in rows)
+            {
+                ct.ThrowIfCancellationRequested();
+                WriteDataRow(csv, result, customFieldNames);
+                csv.NextRecord();
+            }
+        }
+    }
+
+    private static readonly string[] StaticHeaders =
+    [
+        "Tracking Number", "House Bill", "Master Bill", "Carrier", "Service Type",
+        "Ship Date", "Est. Delivery Date",
+        "Shipper Name", "Shipper Address", "Shipper City", "Shipper Country", "Shipper Postal",
+        "Consignee Name", "Consignee Address", "Consignee City", "Consignee Country", "Consignee Postal",
+        "Pieces", "Gross Weight (kg)", "Volume (m³)", "Description", "HS Code",
+        "Declared Value", "Currency", "Freight Cost",
+        "Document Type", "Confidence Score", "OCR Used", "Fallback Used", "Source File"
+    ];
+
+    private static void WriteHeaderRow(CsvWriter csv, List<string> customFieldNames)
+    {
+        foreach (var h in StaticHeaders)
+            csv.WriteField(h);
+        foreach (var n in customFieldNames)
+            csv.WriteField(n);
+    }
+
+    private static void WriteDataRow(CsvWriter csv, ProcessingResult result, List<string> customFieldNames)
+    {
+        var r = result.Record!;
+        csv.WriteField(r.TrackingNumber);
+        csv.WriteField(r.HouseBillNumber);
+        csv.WriteField(r.MasterBillNumber);
+        csv.WriteField(!string.IsNullOrWhiteSpace(r.CarrierName)
+            ? r.CarrierName
+            : (r.DetectedCarrier != Domain.Enums.CarrierType.Unknown ? r.DetectedCarrier.ToString() : null));
+        csv.WriteField(r.ServiceType);
+        csv.WriteField(r.ShipDate?.ToString("yyyy-MM-dd"));
+        csv.WriteField(r.EstimatedDeliveryDate?.ToString("yyyy-MM-dd"));
+        csv.WriteField(r.ShipperName);
+        csv.WriteField(r.ShipperAddress);
+        csv.WriteField(r.ShipperCity);
+        csv.WriteField(r.ShipperCountry);
+        csv.WriteField(r.ShipperPostalCode);
+        csv.WriteField(r.ConsigneeName);
+        csv.WriteField(r.ConsigneeAddress);
+        csv.WriteField(r.ConsigneeCity);
+        csv.WriteField(r.ConsigneeCountry);
+        csv.WriteField(r.ConsigneePostalCode);
+        csv.WriteField(r.NumberOfPieces);
+        csv.WriteField(r.GrossWeightKg);
+        csv.WriteField(r.VolumeM3);
+        csv.WriteField(r.Description);
+        csv.WriteField(r.HsCode);
+        csv.WriteField(r.DeclaredValue);
+        csv.WriteField(r.Currency);
+        csv.WriteField(r.FreightCost);
+        csv.WriteField(r.DocumentType.ToString());
+        csv.WriteField(r.ConfidenceScore);
+        csv.WriteField(result.UsedOcrFallback);
+        csv.WriteField(result.UsedFallbackExtraction);
+        csv.WriteField(r.SourceFileName);
+
+        foreach (var fieldName in customFieldNames)
+        {
+            var cfv = r.CustomFields.FirstOrDefault(
+                c => string.Equals(c.FieldName, fieldName, StringComparison.OrdinalIgnoreCase));
+            csv.WriteField(cfv?.Value ?? string.Empty);
         }
     }
 }

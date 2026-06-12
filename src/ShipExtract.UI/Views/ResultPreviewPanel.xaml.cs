@@ -21,11 +21,26 @@ public partial class ResultPreviewPanel : WpfUserControl
             typeof(ResultPreviewPanel),
             new PropertyMetadata(null, OnResultChanged));
 
+    /// <summary>Identifies the <see cref="ConfidenceThreshold"/> dependency property.</summary>
+    public static readonly DependencyProperty ConfidenceThresholdProperty =
+        DependencyProperty.Register(
+            nameof(ConfidenceThreshold),
+            typeof(double),
+            typeof(ResultPreviewPanel),
+            new PropertyMetadata(0.60, OnResultChanged));
+
     /// <summary>Gets or sets the processing result to display.</summary>
     public ProcessingResult? Result
     {
         get => (ProcessingResult?)GetValue(ResultProperty);
         set => SetValue(ResultProperty, value);
+    }
+
+    /// <summary>Gets or sets the confidence threshold below which the low-confidence card is shown.</summary>
+    public double ConfidenceThreshold
+    {
+        get => (double)GetValue(ConfidenceThresholdProperty);
+        set => SetValue(ConfidenceThresholdProperty, value);
     }
 
     /// <summary>Initialises a new instance of <see cref="ResultPreviewPanel"/>.</summary>
@@ -34,12 +49,14 @@ public partial class ResultPreviewPanel : WpfUserControl
     private static void OnResultChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is ResultPreviewPanel panel)
-            panel.Rebuild((ProcessingResult?)e.NewValue);
+            panel.Rebuild(panel.Result);
     }
 
     private void Rebuild(ProcessingResult? result)
     {
         ContentPanel.Children.Clear();
+        ErrorCard.Visibility          = Visibility.Collapsed;
+        LowConfidenceCard.Visibility  = Visibility.Collapsed;
         if (result is null) return;
 
         if (result.Record is not null)
@@ -110,66 +127,33 @@ public partial class ResultPreviewPanel : WpfUserControl
             ]);
         }
 
+        // Populate error card
         if (result.Errors.Count > 0)
-            AddErrorsSection(result);
-
-        AddRawTextSection(result);
-    }
-
-    private void AddErrorsSection(ProcessingResult result)
-    {
-        var expander = new Expander
         {
-            Header     = "Errors & Diagnostics",
-            IsExpanded = true,
-            Margin     = new Thickness(0, 0, 0, 6),
-            FontWeight = FontWeights.SemiBold,
-            FontSize   = 12,
-            Foreground = (WpfBrush)WpfApplication.Current.Resources["TextPrimaryBrush"]
-        };
-
-        var panel = new StackPanel { Margin = new Thickness(4, 4, 4, 0) };
-
-        foreach (var error in result.Errors)
-        {
-            // User-facing message
-            var userMsg = new TextBlock
+            var firstError = result.Errors[0];
+            ErrorCardText.Text = UserFacingMessages.GetMessage(firstError.Code);
+            if (!string.IsNullOrWhiteSpace(firstError.Message))
             {
-                Text         = UserFacingMessages.GetMessage(error.Code),
-                TextWrapping = TextWrapping.Wrap,
-                FontSize     = 12,
-                Foreground   = (WpfBrush)WpfApplication.Current.Resources["TextPrimaryBrush"],
-                Margin       = new Thickness(0, 0, 0, 2)
-            };
-            panel.Children.Add(userMsg);
-
-            // Technical details (collapsed by default)
-            if (!string.IsNullOrWhiteSpace(error.Message))
-            {
-                var techExpander = new Expander
-                {
-                    Header     = "Technical details",
-                    IsExpanded = false,
-                    Margin     = new Thickness(0, 0, 0, 6),
-                    FontWeight = FontWeights.Normal,
-                    FontSize   = 11,
-                    Foreground = (WpfBrush)WpfApplication.Current.Resources["TextSecondaryBrush"],
-                    Content    = new TextBlock
-                    {
-                        Text         = error.Message,
-                        TextWrapping = TextWrapping.Wrap,
-                        FontFamily   = new System.Windows.Media.FontFamily("Consolas"),
-                        FontSize     = 10,
-                        Margin       = new Thickness(4),
-                        Foreground   = (WpfBrush)WpfApplication.Current.Resources["TextSecondaryBrush"]
-                    }
-                };
-                panel.Children.Add(techExpander);
+                ErrorCardDetailText.Text     = firstError.Message;
+                ErrorCardDetails.Visibility  = Visibility.Visible;
             }
+            else
+            {
+                ErrorCardDetails.Visibility  = Visibility.Collapsed;
+            }
+            ErrorCard.Visibility = Visibility.Visible;
         }
 
-        expander.Content = panel;
-        ContentPanel.Children.Add(expander);
+        // Populate low-confidence card
+        if (result.Record is not null
+            && result.Status == ShipExtract.Domain.Enums.ProcessingStatus.Succeeded
+            && result.Record.ConfidenceScore < ConfidenceThreshold)
+        {
+            LowConfidenceText.Text       = $"\u26A0 Low confidence ({result.Record.ConfidenceScore:P0}) \u2014 this result will be sent to the Review sheet. Check extracted fields carefully.";
+            LowConfidenceCard.Visibility = Visibility.Visible;
+        }
+
+        AddRawTextSection(result);
     }
 
     private void AddRawTextSection(ProcessingResult result)

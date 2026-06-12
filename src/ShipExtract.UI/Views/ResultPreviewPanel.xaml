@@ -24,7 +24,58 @@
         </Style>
     </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
-        <StackPanel x:Name="ContentPanel" Margin="0,0,4,0"/>
-    </ScrollViewer>
+    <StackPanel>
+        <!-- Error card — shown when extraction failed or partially failed -->
+        <Border x:Name="ErrorCard"
+                Background="#FFF0F0"
+                BorderBrush="#FFCCCC"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="10,8"
+                Margin="4,4,4,0"
+                Visibility="Collapsed">
+            <StackPanel>
+                <TextBlock x:Name="ErrorCardText"
+                           Text=""
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Foreground="#8B0000"/>
+                <Expander x:Name="ErrorCardDetails"
+                          Header="Technical details"
+                          IsExpanded="False"
+                          Margin="0,4,0,0"
+                          FontSize="11"
+                          Foreground="#999999"
+                          Visibility="Collapsed">
+                    <TextBlock x:Name="ErrorCardDetailText"
+                               Text=""
+                               TextWrapping="Wrap"
+                               FontFamily="Consolas"
+                               FontSize="10"
+                               Margin="4"
+                               Foreground="#666666"/>
+                </Expander>
+            </StackPanel>
+        </Border>
+
+        <!-- Low confidence card — shown when result is below threshold -->
+        <Border x:Name="LowConfidenceCard"
+                Background="#F5F0FF"
+                BorderBrush="#C9B8E8"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="10,8"
+                Margin="4,4,4,0"
+                Visibility="Collapsed">
+            <TextBlock x:Name="LowConfidenceText"
+                       Text=""
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Foreground="#5A3B8C"/>
+        </Border>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
+            <StackPanel x:Name="ContentPanel" Margin="0,0,4,0"/>
+        </ScrollViewer>
+    </StackPanel>
 </UserControl>

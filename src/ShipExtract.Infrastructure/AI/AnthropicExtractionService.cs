@@ -4,6 +4,7 @@ using ShipExtract.Domain.Interfaces;
 using ShipExtract.Domain.Models;
 using ShipExtract.Infrastructure.AI.Models;
 using ShipExtract.Infrastructure.Settings;
+using System.Collections.Generic;
 
 namespace ShipExtract.Infrastructure.AI;
 
@@ -58,31 +59,41 @@ public sealed class AnthropicExtractionService : IAiExtractionService
         DocumentType hint,
         CarrierType carrier,
         CancellationToken ct = default) =>
-        ExtractCoreAsync(rawText, hint, carrier, ct);
+        ExtractCoreAsync(rawText, hint, carrier, null, ct);
+
+    /// <inheritdoc/>
+    public Task<AiExtractionResponse> ExtractAsync(
+        string rawText,
+        DocumentType hint,
+        CarrierType carrier,
+        List<CustomField>? customFields,
+        CancellationToken ct = default) =>
+        ExtractCoreAsync(rawText, hint, carrier, customFields, ct);
 
     /// <inheritdoc/>
     public async Task<AiExtractionResponse> ExtractAsync(
         string rawText,
         DocumentType hint = DocumentType.Unknown,
         CancellationToken ct = default) =>
-        await ExtractCoreAsync(rawText, hint, CarrierType.Unknown, ct);
+        await ExtractCoreAsync(rawText, hint, CarrierType.Unknown, null, ct);
 
     private async Task<AiExtractionResponse> ExtractCoreAsync(
         string rawText,
         DocumentType hint,
         CarrierType carrier,
+        List<CustomField>? customFields,
         CancellationToken ct)
     {
         try
         {
             var systemPrompt = ExtractionPromptBuilder.BuildSystemPrompt();
-            var userPrompt   = ExtractionPromptBuilder.BuildUserPrompt(rawText, hint, carrier);
+            var userPrompt   = ExtractionPromptBuilder.BuildUserPrompt(rawText, hint, carrier, customFields);
 
             var rawResponse = await ExecuteWithRetryAsync(systemPrompt, userPrompt, ct);
 
             var cleaned = StripMarkdownFences(rawResponse);
 
-            return TryParseResponse(cleaned, rawResponse)
+            return TryParseResponse(cleaned, rawResponse, customFields)
                 ?? await RetryWithRepairAsync(cleaned, rawResponse, ct);
         }
         catch (Exception ex)
@@ -144,12 +155,12 @@ public sealed class AnthropicExtractionService : IAiExtractionService
         return s.Trim();
     }
 
-    private AiExtractionResponse? TryParseResponse(string json, string rawResponse)
+    private AiExtractionResponse? TryParseResponse(string json, string rawResponse, List<CustomField>? customFields = null)
     {
         try
         {
             var dto = JsonSerializer.Deserialize<ShipmentExtractionDto>(json, JsonOptions);
-            return dto is null ? null : BuildSuccessResponse(dto, rawResponse);
+            return dto is null ? null : BuildSuccessResponse(dto, rawResponse, customFields);
         }
         catch (JsonException)
         {
@@ -182,7 +193,8 @@ public sealed class AnthropicExtractionService : IAiExtractionService
         }
     }
 
-    private static AiExtractionResponse BuildSuccessResponse(ShipmentExtractionDto dto, string rawJson)
+    private static AiExtractionResponse BuildSuccessResponse(
+        ShipmentExtractionDto dto, string rawJson, List<CustomField>? customFields = null)
     {
         var record = new ShipmentRecord
         {
@@ -215,7 +227,31 @@ public sealed class AnthropicExtractionService : IAiExtractionService
             ConfidenceScore       = dto.ConfidenceScore ?? 0.5
         };
 
+        record.CustomFields = MapCustomFields(dto.CustomFields, customFields);
+
         return new AiExtractionResponse(record, record.ConfidenceScore, rawJson, true, null);
+    }
+
+    private static List<CustomFieldValue> MapCustomFields(
+        List<CustomFieldDto>? dtoFields, List<CustomField>? requestedFields)
+    {
+        var result = new List<CustomFieldValue>();
+        if (requestedFields is null || requestedFields.Count == 0) return result;
+
+        foreach (var requested in requestedFields.Where(f => f.IsEnabled && !string.IsNullOrWhiteSpace(f.Name)))
+        {
+            var matched = dtoFields?.FirstOrDefault(
+                d => string.Equals(d.Name, requested.Name, StringComparison.OrdinalIgnoreCase));
+
+            result.Add(new CustomFieldValue
+            {
+                FieldId   = requested.Id,
+                FieldName = requested.Name,
+                Value     = matched?.Value ?? requested.DefaultValue
+            });
+        }
+
+        return result;
     }
 
     private static DateTime? ParseDate(string? value) =>

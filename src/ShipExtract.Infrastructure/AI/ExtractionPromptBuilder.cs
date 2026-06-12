@@ -1,10 +1,11 @@
 using ShipExtract.Domain.Enums;
+using ShipExtract.Domain.Models;
 
 namespace ShipExtract.Infrastructure.AI;
 
 
 /// <summary>Builds the system and user prompts sent to the AI extraction service.</summary>
-internal static class ExtractionPromptBuilder
+public static class ExtractionPromptBuilder
 {
     /// <summary>Returns the system prompt that instructs the model on its extraction role.</summary>
     public static string BuildSystemPrompt() =>
@@ -27,11 +28,16 @@ internal static class ExtractionPromptBuilder
     /// <param name="rawText">The plain text extracted from the document.</param>
     /// <param name="hint">Optional document type hint to improve extraction accuracy.</param>
     /// <param name="carrier">Optional detected carrier to append carrier-specific hints.</param>
+    /// <param name="customFields">Optional user-defined custom fields to append to the prompt.</param>
     public static string BuildUserPrompt(
         string rawText,
         DocumentType hint,
-        CarrierType carrier = CarrierType.Unknown)
+        CarrierType carrier = CarrierType.Unknown,
+        List<CustomField>? customFields = null)
     {
+        var customSection = BuildCustomFieldsSection(customFields);
+        var customSchema  = BuildCustomFieldsSchema(customFields);
+
         var base_ =
             $$"""
             Document type hint: {{hint}}
@@ -66,15 +72,49 @@ internal static class ExtractionPromptBuilder
               "currency": "string | null",
               "freightCost": "number | null",
               "confidenceScore": "number between 0.0 and 1.0",
-              "documentType": "Unknown|AirWaybill|BillOfLading|CommercialInvoice|PackingList|CustomsDeclaration|CourierLabel"
+              "documentType": "Unknown|AirWaybill|BillOfLading|CommercialInvoice|PackingList|CustomsDeclaration|CourierLabel"{{customSchema}}
             }
-
+            {{customSection}}
             Document text:
             {{rawText}}
             """;
 
         var hints = CarrierPromptBuilder.GetCarrierHints(carrier);
         return string.IsNullOrEmpty(hints) ? base_ : base_ + "\n\n" + hints;
+    }
+
+    /// <summary>
+    /// Builds the custom fields section of the prompt (instructions + schema entries).
+    /// Returns an empty string when <paramref name="customFields"/> is null or empty.
+    /// </summary>
+    public static string BuildCustomFieldsSection(List<CustomField>? customFields)
+    {
+        var active = customFields?.Where(f => f.IsEnabled && !string.IsNullOrWhiteSpace(f.Name))
+                                  .OrderBy(f => f.SortOrder)
+                                  .ToList();
+        if (active is null || active.Count == 0)
+            return string.Empty;
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine();
+        sb.AppendLine("CUSTOM FIELDS — extract the following additional fields and include them in the");
+        sb.AppendLine("\"customFields\" array. Each entry must have \"name\" (matching exactly), \"value\" (string or null).");
+        foreach (var f in active)
+        {
+            var hint = string.IsNullOrWhiteSpace(f.ExtractionHint) ? f.Name : f.ExtractionHint;
+            sb.AppendLine($"  - \"{f.Name}\": {hint}");
+        }
+        sb.AppendLine();
+        return sb.ToString();
+    }
+
+    private static string BuildCustomFieldsSchema(List<CustomField>? customFields)
+    {
+        var active = customFields?.Where(f => f.IsEnabled && !string.IsNullOrWhiteSpace(f.Name)).ToList();
+        if (active is null || active.Count == 0)
+            return string.Empty;
+
+        return ",\n  \"customFields\": [{\"name\": \"string\", \"value\": \"string | null\"}, ...]";
     }
 
     /// <summary>
@@ -85,11 +125,16 @@ internal static class ExtractionPromptBuilder
     /// <param name="rawText">The plain text extracted from the document.</param>
     /// <param name="hint">Optional document type hint to improve extraction accuracy.</param>
     /// <param name="carrier">Optional detected carrier to append carrier-specific hints.</param>
+    /// <param name="customFields">Optional user-defined custom fields to append to the prompt.</param>
     public static string BuildOllamaPrompt(
         string rawText,
         DocumentType hint,
-        CarrierType carrier = CarrierType.Unknown)
+        CarrierType carrier = CarrierType.Unknown,
+        List<CustomField>? customFields = null)
     {
+        var customSection = BuildCustomFieldsSection(customFields);
+        var customSchema  = BuildCustomFieldsSchema(customFields);
+
         var base_ =
             $$"""
             You are a logistics data extractor. Extract shipment fields from the
@@ -122,7 +167,7 @@ internal static class ExtractionPromptBuilder
               value. Set that field to null instead.
             - A real value contains actual names, numbers, or addresses —
               not generic category words in all caps.
-
+            {{customSection}}
             Document type hint: {{hint}}
 
             Return this exact JSON structure:
@@ -153,7 +198,7 @@ internal static class ExtractionPromptBuilder
               "currency": "string or null",
               "freightCost": "number or null",
               "confidenceScore": "number between 0.0 and 1.0",
-              "documentType": "AirWaybill or BillOfLading or CommercialInvoice or PackingList or CustomsDeclaration or CourierLabel or Unknown"
+              "documentType": "AirWaybill or BillOfLading or CommercialInvoice or PackingList or CustomsDeclaration or CourierLabel or Unknown"{{customSchema}}
             }
 
             Document text:

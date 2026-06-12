@@ -12,6 +12,7 @@ using ShipExtract.Infrastructure.Ocr;
 using ShipExtract.Infrastructure.Pdf;
 using ShipExtract.Infrastructure.Settings;
 using ShipExtract.Infrastructure.TextProcessing;
+using ShipExtract.Infrastructure.Update;
 
 namespace ShipExtract.Infrastructure.DependencyInjection;
 
@@ -116,6 +117,18 @@ public static class InfrastructureServiceExtensions
         services.AddSingleton<INetworkChecker>(sp =>
             new NetworkChecker(
                 sp.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(NetworkChecker))));
+
+        // Update checker — GitHub Releases API
+        services.AddHttpClient(nameof(GitHubUpdateService), client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(10);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("ShipExtract/1.0 (github.com/davidkuts/ship-extract)");
+        });
+        services.AddSingleton<IUpdateService>(sp =>
+            new GitHubUpdateService(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(GitHubUpdateService)),
+                repoOwner: "davidkuts",
+                repoName:  "ship-extract"));
 
         return services;
     }

@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Threading;
 using WpfApplication = System.Windows.Application;
 using WpfDragEventArgs = System.Windows.DragEventArgs;
 using WpfUserControl = System.Windows.Controls.UserControl;
@@ -32,6 +33,7 @@ public partial class DropZoneControl : WpfUserControl
 
     // Internal bool for drag-over visual state
     private bool _isDragOver;
+    private DispatcherTimer? _rejectionTimer;
 
     /// <summary>Gets or sets the list of files most recently dropped or selected.</summary>
     public IReadOnlyList<string>? FilesDropped
@@ -72,6 +74,21 @@ public partial class DropZoneControl : WpfUserControl
             IsDragOver = true;
             DropBorder.BorderBrush = (System.Windows.Media.SolidColorBrush)
                 WpfApplication.Current.Resources["AccentBrush"];
+
+            // Show file count badge
+            if (e.Data.GetData(WpfDataFormats.FileDrop) is string[] paths)
+            {
+                var pdfCount = paths.Count(p => p.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase));
+                if (pdfCount > 0)
+                {
+                    DragCountText.Text       = $"{pdfCount} PDF{(pdfCount == 1 ? "" : "s")}";
+                    DragCountBadge.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    DragCountBadge.Visibility = Visibility.Collapsed;
+                }
+            }
         }
         else
         {
@@ -83,6 +100,7 @@ public partial class DropZoneControl : WpfUserControl
     private void OnDragLeave(object sender, WpfDragEventArgs e)
     {
         IsDragOver = false;
+        DragCountBadge.Visibility = Visibility.Collapsed;
         DropBorder.BorderBrush = (System.Windows.Media.SolidColorBrush)
             WpfApplication.Current.Resources["PrimaryLightBrush"];
         DropBorder.Background = (System.Windows.Media.SolidColorBrush)
@@ -92,6 +110,7 @@ public partial class DropZoneControl : WpfUserControl
     private void OnDrop(object sender, WpfDragEventArgs e)
     {
         IsDragOver = false;
+        DragCountBadge.Visibility = Visibility.Collapsed;
         DropBorder.BorderBrush = (System.Windows.Media.SolidColorBrush)
             WpfApplication.Current.Resources["PrimaryLightBrush"];
         DropBorder.Background = (System.Windows.Media.SolidColorBrush)
@@ -99,13 +118,33 @@ public partial class DropZoneControl : WpfUserControl
 
         if (e.Data.GetData(WpfDataFormats.FileDrop) is string[] paths)
         {
-            var pdfs = paths
-                .Where(p => p.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
-                .ToList();
+            var pdfs     = paths.Where(p => p.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)).ToList();
+            var nonPdfs  = paths.Length - pdfs.Count;
 
             if (pdfs.Count > 0)
                 RaiseFilesSelected(pdfs);
+
+            if (nonPdfs > 0)
+                ShowRejectionFeedback(nonPdfs, pdfs.Count == 0);
         }
+    }
+
+    private void ShowRejectionFeedback(int rejectedCount, bool allRejected)
+    {
+        _rejectionTimer?.Stop();
+
+        RejectionText.Text = allRejected
+            ? $"Only PDF files are supported \u2014 {rejectedCount} file{(rejectedCount == 1 ? "" : "s")} skipped"
+            : $"{rejectedCount} non-PDF file{(rejectedCount == 1 ? "" : "s")} skipped (PDFs were added)";
+        RejectionBanner.Visibility = Visibility.Visible;
+
+        _rejectionTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _rejectionTimer.Tick += (_, _) =>
+        {
+            RejectionBanner.Visibility = Visibility.Collapsed;
+            _rejectionTimer?.Stop();
+        };
+        _rejectionTimer.Start();
     }
 
     private void OnClick(object sender, System.Windows.Input.MouseButtonEventArgs e)

@@ -27,9 +27,13 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly ICredentialService _credentialService;
     private readonly IOcrService _ocrService;
     private readonly AppSettings _appSettings;
+    private readonly IUpdateService? _updateService;
+    private readonly ISettingsService? _settingsService;
 
     private BatchJob? _lastBatchJob;
     private int _failureCount;
+    private string? _pendingUpdateVersion;
+    private string? _pendingUpdateUrl;
 
     [ObservableProperty] private ObservableCollection<QueueItemViewModel> _queueItems = [];
     [ObservableProperty] private bool _isProcessing;
@@ -48,6 +52,17 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _networkWarningVisible;
     [ObservableProperty] private string _networkWarningText = string.Empty;
     [ObservableProperty] private string _batchSummaryText = string.Empty;
+    [ObservableProperty] private string _statusBarLeftText = "Drop PDF files here or click to browse";
+
+    // ── Update banner ─────────────────────────────────────────────────────────
+    [ObservableProperty] private bool _showUpdateBanner;
+    [ObservableProperty] private string _updateBannerText = string.Empty;
+
+    /// <summary>Gets whether the queue is empty (used for empty-state panel).</summary>
+    public bool ShowEmptyState => QueueItems.Count == 0;
+
+    /// <summary>Gets the current confidence threshold (for binding in ResultPreviewPanel).</summary>
+    public double ConfidenceThreshold => _appSettings.MinimumConfidenceThreshold;
 
     /// <summary>Gets whether an API key or Ollama provider is configured.</summary>
     public bool ApiKeyIsSet =>
@@ -93,7 +108,9 @@ public sealed partial class MainViewModel : ObservableObject
         ILoggingService logger,
         ICredentialService credentialService,
         IOcrService ocrService,
-        AppSettings appSettings)
+        AppSettings appSettings,
+        IUpdateService? updateService = null,
+        ISettingsService? settingsService = null)
     {
         _batchService      = batchService;
         _exportFactory     = exportFactory;
@@ -101,9 +118,18 @@ public sealed partial class MainViewModel : ObservableObject
         _credentialService = credentialService;
         _ocrService        = ocrService;
         _appSettings       = appSettings;
+        _updateService     = updateService;
+        _settingsService   = settingsService;
 
         _selectedOutputDirectory = Environment.ExpandEnvironmentVariables(
             "%USERPROFILE%\\Documents\\ShipExtract");
+
+        // Keep ShowEmptyState in sync with queue changes
+        _queueItems.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(ShowEmptyState));
+            RefreshStatusBarLeft();
+        };
 
         // Subscribe to network warnings from the batch service
         _batchService.OnNetworkWarning += msg =>
@@ -117,11 +143,103 @@ public sealed partial class MainViewModel : ObservableObject
                 });
             }
         };
+
+        // Fire-and-forget update check (3 s delay so startup UI is not blocked)
+        if (_appSettings.CheckForUpdatesOnStartup && _updateService is not null)
+            _ = CheckForUpdateAfterDelayAsync();
+    }
+
+    private async Task CheckForUpdateAfterDelayAsync()
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+            var info = await _updateService!.CheckForUpdateAsync().ConfigureAwait(false);
+            if (info is null) return;
+
+            // Persist last-check date
+            _appSettings.LastUpdateCheckDate = DateTime.UtcNow;
+            _settingsService?.Save(_appSettings);
+
+            if (!info.IsUpdateAvailable) return;
+
+            // Respect "skip this version"
+            if (!string.IsNullOrWhiteSpace(_appSettings.SkippedVersion) &&
+                System.Version.TryParse(_appSettings.SkippedVersion, out var skipped) &&
+                info.LatestVersion <= skipped)
+                return;
+
+            _pendingUpdateVersion = info.LatestVersion.ToString();
+            _pendingUpdateUrl     = info.DownloadUrl;
+
+            WpfApplication.Current.Dispatcher.Invoke(() =>
+            {
+                UpdateBannerText  = $"Update available: v{info.LatestVersion}";
+                ShowUpdateBanner  = true;
+            });
+        }
+        catch { /* never surface update errors */ }
     }
 
     /// <summary>Dismisses the network warning banner.</summary>
     [RelayCommand]
     private void DismissNetworkWarning() => NetworkWarningVisible = false;
+
+    /// <summary>Opens the update download page in the default browser.</summary>
+    [RelayCommand]
+    private void OpenUpdatePage()
+    {
+        if (string.IsNullOrWhiteSpace(_pendingUpdateUrl)) return;
+        try
+        {
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(_pendingUpdateUrl) { UseShellExecute = true });
+        }
+        catch { /* best effort */ }
+    }
+
+    /// <summary>Marks the pending version as skipped so the banner won't reappear for it.</summary>
+    [RelayCommand]
+    private void SkipUpdateVersion()
+    {
+        if (string.IsNullOrWhiteSpace(_pendingUpdateVersion)) return;
+        _appSettings.SkippedVersion = _pendingUpdateVersion;
+        _settingsService?.Save(_appSettings);
+        ShowUpdateBanner = false;
+    }
+
+    /// <summary>Dismisses the update banner for this session only.</summary>
+    [RelayCommand]
+    private void DismissUpdateBanner() => ShowUpdateBanner = false;
+
+    /// <summary>Cancels in-progress processing (bound to Escape key).</summary>
+    [RelayCommand]
+    private void HandleEscape()
+    {
+        if (IsProcessing)
+            StartProcessingCommand.Cancel();
+    }
+
+    /// <summary>Opens the containing folder for a queue item and selects the file.</summary>
+    [RelayCommand]
+    private void OpenFileLocation(QueueItemViewModel? item)
+    {
+        if (item is null) return;
+        try { Process.Start("explorer.exe", $"/select,\"{item.FilePath}\""); }
+        catch { /* best effort */ }
+    }
+
+    private void RefreshStatusBarLeft()
+    {
+        if (IsProcessing)
+            StatusBarLeftText = StatusMessage;
+        else if (HasResults)
+            StatusBarLeftText = BatchSummaryText;
+        else if (TotalFiles > 0)
+            StatusBarLeftText = $"{TotalFiles} file{(TotalFiles == 1 ? "" : "s")} queued \u2014 ready to process";
+        else
+            StatusBarLeftText = "Drop PDF files here or click to browse";
+    }
 
     /// <summary>Refreshes warning banner properties after settings change.</summary>
     public void RefreshWarnings()
@@ -361,8 +479,9 @@ public sealed partial class MainViewModel : ObservableObject
         {
             Directory.CreateDirectory(SelectedOutputDirectory);
             var timestamp  = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            var outputPath = Path.Combine(
-                SelectedOutputDirectory, $"ShipExtract_{timestamp}.{extension}");
+            var rawPrefix  = string.IsNullOrWhiteSpace(_appSettings.ExportFilePrefix) ? "ShipExtract" : _appSettings.ExportFilePrefix;
+            var prefix     = string.Concat(rawPrefix.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+            var outputPath = Path.Combine(SelectedOutputDirectory, $"{prefix}_{timestamp}.{extension}");
 
             var threshold = _appSettings.MinimumConfidenceThreshold;
             var exporter  = _exportFactory.GetService(format);
@@ -447,6 +566,7 @@ public sealed partial class MainViewModel : ObservableObject
         _failureCount  = entry.FailureCount;
         HasResults     = true;
         StatusMessage  = $"Loaded from history: {entry.SuccessCount} succeeded, {entry.FailureCount} failed.";
+        OnPropertyChanged(nameof(ShowEmptyState));
 
         var totalSecs = entry.TotalDurationSeconds;
         var avgSecs   = TotalFiles > 0 ? totalSecs / TotalFiles : 0;
@@ -471,6 +591,7 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnStatusMessageChanged(string value)
     {
         HasStatusMessage = !string.IsNullOrEmpty(value);
+        RefreshStatusBarLeft();
     }
 
     partial void OnIsProcessingChanged(bool value)
@@ -479,6 +600,7 @@ public sealed partial class MainViewModel : ObservableObject
         ExportCsvCommand.NotifyCanExecuteChanged();
         ExportExcelCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(WindowTitle));
+        RefreshStatusBarLeft();
     }
 
     partial void OnHasResultsChanged(bool value)
@@ -486,7 +608,10 @@ public sealed partial class MainViewModel : ObservableObject
         ExportCsvCommand.NotifyCanExecuteChanged();
         ExportExcelCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(WindowTitle));
+        RefreshStatusBarLeft();
     }
+
+    partial void OnBatchSummaryTextChanged(string value) => RefreshStatusBarLeft();
 
     partial void OnProcessedFilesChanged(int value)
     {

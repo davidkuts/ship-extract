@@ -88,7 +88,9 @@ public partial class App : System.Windows.Application
         _host = Host.CreateDefaultBuilder()
             .ConfigureServices(services =>
             {
-                services.AddApplicationServices(maxConcurrency);
+                services.AddApplicationServices(
+                    maxConcurrency,
+                    customFieldsProvider: () => appSettings.CustomFields);
                 services.AddInfrastructureServices(
                     appSettings.LogDirectory,
                     appSettings.TessDataDirectory,

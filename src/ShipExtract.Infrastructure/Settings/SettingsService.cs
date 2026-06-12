@@ -84,21 +84,8 @@ public sealed class SettingsService : ISettingsService
     public void Save(AppSettings settings)
     {
         Directory.CreateDirectory(_appDataRoot);
-        // Never persist the API key — it lives in Credential Manager
-        var toSave = new AppSettings
-        {
-            ApiKey                 = string.Empty,
-            Model                  = settings.Model,
-            MaxTokens              = settings.MaxTokens,
-            TessDataDirectory      = settings.TessDataDirectory,
-            DefaultOutputDirectory = settings.DefaultOutputDirectory,
-            LogDirectory           = settings.LogDirectory,
-            AiProvider             = settings.AiProvider,
-            OllamaBaseUrl          = settings.OllamaBaseUrl,
-            OllamaModel            = settings.OllamaModel,
-            HistoryDirectory       = settings.HistoryDirectory
-        };
-        var json = JsonSerializer.Serialize(toSave, JsonOptions);
+        // ApiKey is [JsonIgnore] on AppSettings, so it is never written to disk.
+        var json = JsonSerializer.Serialize(settings, JsonOptions);
         File.WriteAllText(_settingsPath, json);
     }
 
