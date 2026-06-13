@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using Moq;
 using ShipExtract.Application.Pipelines;
 using ShipExtract.Domain.Enums;
@@ -38,8 +38,8 @@ public sealed class ExtractionPipelineTests
         var pipeline = CreatePipeline();
         var result = await pipeline.ProcessAsync(@"C:\nonexistent\file.pdf");
 
-        result.Status.Should().Be(ProcessingStatus.Failed);
-        result.Errors.Should().ContainSingle(e => e.Code == ExtractionErrorCode.UnsupportedFormat);
+        result.Status.ShouldBe(ProcessingStatus.Failed);
+        result.Errors.Count(e => e.Code == ExtractionErrorCode.UnsupportedFormat).ShouldBe(1);
     }
 
     [Fact]
@@ -48,8 +48,8 @@ public sealed class ExtractionPipelineTests
         var pipeline = CreatePipeline();
         var result = await pipeline.ProcessAsync("document.txt");
 
-        result.Status.Should().Be(ProcessingStatus.Failed);
-        result.Errors.Should().ContainSingle(e => e.Code == ExtractionErrorCode.UnsupportedFormat);
+        result.Status.ShouldBe(ProcessingStatus.Failed);
+        result.Errors.Count(e => e.Code == ExtractionErrorCode.UnsupportedFormat).ShouldBe(1);
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class ExtractionPipelineTests
             var pipeline = CreatePipeline();
             var result = await pipeline.ProcessAsync(pdfFile);
 
-            result.UsedOcrFallback.Should().BeFalse();
+            result.UsedOcrFallback.ShouldBeFalse();
             _ocrService.Verify(o => o.RecognizeTextFromPagesAsync(
                 It.IsAny<IReadOnlyList<byte[]>>(), It.IsAny<CancellationToken>()), Times.Never);
         }
@@ -104,7 +104,7 @@ public sealed class ExtractionPipelineTests
             var pipeline = CreatePipeline();
             var result = await pipeline.ProcessAsync(pdfFile);
 
-            result.UsedOcrFallback.Should().BeTrue();
+            result.UsedOcrFallback.ShouldBeTrue();
         }
         finally
         {
@@ -131,8 +131,8 @@ public sealed class ExtractionPipelineTests
             var pipeline = CreatePipeline();
             var result = await pipeline.ProcessAsync(pdfFile);
 
-            result.Status.Should().Be(ProcessingStatus.Failed);
-            result.Errors.Should().ContainSingle(e => e.Code == ExtractionErrorCode.AiCallFailure);
+            result.Status.ShouldBe(ProcessingStatus.Failed);
+            result.Errors.Count(e => e.Code == ExtractionErrorCode.AiCallFailure).ShouldBe(1);
         }
         finally
         {
@@ -168,8 +168,8 @@ public sealed class ExtractionPipelineTests
             var pipeline = CreatePipeline();
             var result = await pipeline.ProcessAsync(pdfFile);
 
-            result.Status.Should().Be(ProcessingStatus.PartialSuccess);
-            result.Errors.Should().Contain(e => e.Code == ExtractionErrorCode.ValidationFailure);
+            result.Status.ShouldBe(ProcessingStatus.PartialSuccess);
+            result.Errors.ShouldContain(e => e.Code == ExtractionErrorCode.ValidationFailure);
         }
         finally
         {

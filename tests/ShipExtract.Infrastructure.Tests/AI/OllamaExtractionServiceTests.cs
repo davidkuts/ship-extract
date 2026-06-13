@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
-using FluentAssertions;
+using Shouldly;
 using Moq;
 using ShipExtract.Domain.Enums;
 using ShipExtract.Domain.Interfaces;
@@ -69,8 +69,8 @@ public sealed class OllamaExtractionServiceTests
 
         var result = await svc.ExtractAsync("test text");
 
-        result.Success.Should().BeFalse();
-        result.ErrorMessage.Should().ContainAny("not running", "Ollama");
+        result.Success.ShouldBeFalse();
+        (result.ErrorMessage!.Contains("not running") || result.ErrorMessage.Contains("Ollama")).ShouldBeTrue();
     }
 
     [Fact]
@@ -84,9 +84,9 @@ public sealed class OllamaExtractionServiceTests
         var svc    = new OllamaExtractionService(client, DefaultSettings, _logger.Object);
         var result = await svc.ExtractAsync("some document text");
 
-        result.Success.Should().BeTrue();
-        result.Record.Should().NotBeNull();
-        result.Record!.TrackingNumber.Should().Be("TRACK123");
+        result.Success.ShouldBeTrue();
+        result.Record.ShouldNotBeNull();
+        result.Record!.TrackingNumber.ShouldBe("TRACK123");
     }
 
     [Fact]
@@ -101,8 +101,8 @@ public sealed class OllamaExtractionServiceTests
         var svc    = new OllamaExtractionService(client, DefaultSettings, _logger.Object);
         var result = await svc.ExtractAsync("some document text");
 
-        result.Success.Should().BeFalse();
-        handler.GenerateCallCount.Should().Be(2); // original + repair retry
+        result.Success.ShouldBeFalse();
+        handler.GenerateCallCount.ShouldBe(2); // original + repair retry
     }
 
     [Fact]
@@ -114,8 +114,8 @@ public sealed class OllamaExtractionServiceTests
 
         var result = await svc.ExtractAsync("test");
 
-        result.Success.Should().BeFalse();
-        result.ErrorMessage.Should().NotBeNullOrWhiteSpace();
+        result.Success.ShouldBeFalse();
+        result.ErrorMessage.ShouldNotBeNullOrWhiteSpace();
     }
 }
 

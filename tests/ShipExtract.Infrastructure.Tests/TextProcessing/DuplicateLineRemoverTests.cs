@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using ShipExtract.Infrastructure.TextProcessing;
 
 namespace ShipExtract.Infrastructure.Tests.TextProcessing;
@@ -16,7 +16,7 @@ public sealed class DuplicateLineRemoverTests
 
         var lines = result.Split('\n');
         lines.Count(l => l.Trim().Equals("Header", StringComparison.OrdinalIgnoreCase))
-             .Should().Be(1);
+             .ShouldBe(1);
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public sealed class DuplicateLineRemoverTests
 
         var lines = result.Split('\n');
         lines.Count(l => l.Trim().Equals("line", StringComparison.OrdinalIgnoreCase))
-             .Should().Be(2);
+             .ShouldBe(2);
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public sealed class DuplicateLineRemoverTests
 
         var lines = result.Split('\n');
         lines.Count(l => l.Trim() == "100")
-             .Should().Be(3, "numeric-only lines must never be removed");
+             .ShouldBe(3, "numeric-only lines must never be removed");
     }
 
     [Fact]
@@ -53,13 +53,13 @@ public sealed class DuplicateLineRemoverTests
 
         var lines = result.Split('\n');
         lines.Count(l => l.Trim().Equals("ok", StringComparison.OrdinalIgnoreCase))
-             .Should().Be(3, "trivial lines (< 4 chars) should never be removed");
+             .ShouldBe(3, "trivial lines (< 4 chars) should never be removed");
     }
 
     [Fact]
     public void NeverReturnsNull()
     {
         var result = _sut.Process(string.Empty);
-        result.Should().NotBeNull();
+        result.ShouldNotBeNull();
     }
 }

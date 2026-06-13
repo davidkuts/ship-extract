@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using ShipExtract.Domain.Enums;
 using ShipExtract.Domain.Models;
 using ShipExtract.Infrastructure.Export;
@@ -54,18 +54,18 @@ public sealed class CsvExportServiceThresholdTests : IDisposable
         var mainLines = (await File.ReadAllLinesAsync(_tempFile))
             .Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("#"))
             .ToArray();
-        mainLines.Should().HaveCount(2); // header + 1 data row
-        mainLines[1].Should().Contain("T-ABOVE");
+        mainLines.Length.ShouldBe(2); // header + 1 data row
+        mainLines[1].ShouldContain("T-ABOVE");
 
         // Review CSV should exist and have 1 data row
         var reviewPath = ReviewFilePath(_tempFile);
-        File.Exists(reviewPath).Should().BeTrue();
+        File.Exists(reviewPath).ShouldBeTrue();
 
         var reviewLines = (await File.ReadAllLinesAsync(reviewPath))
             .Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("#"))
             .ToArray();
-        reviewLines.Should().HaveCount(2); // header + 1 data row
-        reviewLines[1].Should().Contain("T-BELOW");
+        reviewLines.Length.ShouldBe(2); // header + 1 data row
+        reviewLines[1].ShouldContain("T-BELOW");
     }
 
     [Fact]
@@ -81,6 +81,6 @@ public sealed class CsvExportServiceThresholdTests : IDisposable
         await svc.ExportAsync(results, _tempFile, confidenceThreshold: 0.60);
 
         var reviewPath = ReviewFilePath(_tempFile);
-        File.Exists(reviewPath).Should().BeFalse();
+        File.Exists(reviewPath).ShouldBeFalse();
     }
 }

@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using Moq;
 using ShipExtract.Domain.Enums;
 using ShipExtract.Domain.Exceptions;
@@ -29,8 +29,8 @@ public sealed class PdfValidationTests : IDisposable
         var parser = CreateParser();
         var act = () => parser.HasSelectableTextAsync(@"C:\nonexistent_path_xyz\missing.pdf");
 
-        var ex = await act.Should().ThrowAsync<ShipExtractException>();
-        ex.And.ErrorCode.Should().Be(ExtractionErrorCode.PdfReadFailure);
+        var ex = await Should.ThrowAsync<ShipExtractException>(act);
+        ex.ErrorCode.ShouldBe(ExtractionErrorCode.PdfReadFailure);
     }
 
     [Fact]
@@ -42,8 +42,8 @@ public sealed class PdfValidationTests : IDisposable
         var parser = CreateParser();
         var act = () => parser.HasSelectableTextAsync(path);
 
-        var ex = await act.Should().ThrowAsync<ShipExtractException>();
-        ex.And.ErrorCode.Should().Be(ExtractionErrorCode.EmptyFile);
+        var ex = await Should.ThrowAsync<ShipExtractException>(act);
+        ex.ErrorCode.ShouldBe(ExtractionErrorCode.EmptyFile);
     }
 
     [Fact]
@@ -55,8 +55,8 @@ public sealed class PdfValidationTests : IDisposable
         var parser = CreateParser();
         var act = () => parser.HasSelectableTextAsync(path);
 
-        var ex = await act.Should().ThrowAsync<ShipExtractException>();
-        ex.And.ErrorCode.Should().Be(ExtractionErrorCode.CorruptFile);
+        var ex = await Should.ThrowAsync<ShipExtractException>(act);
+        ex.ErrorCode.ShouldBe(ExtractionErrorCode.CorruptFile);
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public sealed class PdfValidationTests : IDisposable
         var parser = CreateParser();
         var act = () => parser.ExtractTextAsync(@"C:\nonexistent_path_xyz\missing.pdf");
 
-        var ex = await act.Should().ThrowAsync<ShipExtractException>();
-        ex.And.ErrorCode.Should().Be(ExtractionErrorCode.PdfReadFailure);
+        var ex = await Should.ThrowAsync<ShipExtractException>(act);
+        ex.ErrorCode.ShouldBe(ExtractionErrorCode.PdfReadFailure);
     }
 }

@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using ShipExtract.Infrastructure.TextProcessing;
 
 namespace ShipExtract.Infrastructure.Tests.TextProcessing;
@@ -14,10 +14,10 @@ public sealed class FormAnnotationCleanerTests
 
         var result = _sut.Process(input);
 
-        result.Should().Contain("CONSIGNEE:");
-        result.Should().NotContain("Tax ID");
-        result.Should().NotContain("SELECT DOWN ARROW");
-        result.Should().NotContain("GB987654321");
+        result.ShouldContain("CONSIGNEE:");
+        result.ShouldNotContain("Tax ID");
+        result.ShouldNotContain("SELECT DOWN ARROW");
+        result.ShouldNotContain("GB987654321");
     }
 
     [Fact]
@@ -28,9 +28,9 @@ public sealed class FormAnnotationCleanerTests
 
         var result = _sut.Process(input);
 
-        result.Should().Contain("2024-06-10");
-        result.Should().NotContain("Tax ID");
-        result.Should().NotContain("SELECT DOWN ARROW");
+        result.ShouldContain("2024-06-10");
+        result.ShouldNotContain("Tax ID");
+        result.ShouldNotContain("SELECT DOWN ARROW");
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public sealed class FormAnnotationCleanerTests
 
         var result = _sut.Process(input);
 
-        result.Should().Be(input);
+        result.ShouldBe(input);
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class FormAnnotationCleanerTests
 
         var result = _sut.Process(input);
 
-        result.Trim().Should().BeEmpty();
+        result.Trim().ShouldBeEmpty();
     }
 
     [Fact]
@@ -60,9 +60,9 @@ public sealed class FormAnnotationCleanerTests
 
         var result = _sut.Process(input);
 
-        result.Should().NotContain("CHECKBOX");
-        result.Should().NotContain("REQUIRED FIELD");
-        result.Should().Contain("Please indicate your preference");
+        result.ShouldNotContain("CHECKBOX");
+        result.ShouldNotContain("REQUIRED FIELD");
+        result.ShouldContain("Please indicate your preference");
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public sealed class FormAnnotationCleanerTests
     {
         var result = _sut.Process(string.Empty);
 
-        result.Should().NotBeNull();
-        result.Should().BeEmpty();
+        result.ShouldNotBeNull();
+        result.ShouldBeEmpty();
     }
 }

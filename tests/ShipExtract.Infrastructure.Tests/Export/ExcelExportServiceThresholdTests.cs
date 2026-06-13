@@ -1,5 +1,5 @@
 using ClosedXML.Excel;
-using FluentAssertions;
+using Shouldly;
 using ShipExtract.Domain.Enums;
 using ShipExtract.Domain.Models;
 using ShipExtract.Infrastructure.Export;
@@ -44,15 +44,15 @@ public sealed class ExcelExportServiceThresholdTests : IDisposable
 
         using var wb = new XLWorkbook(_tempFile);
 
-        wb.Worksheets.Any(w => w.Name == "Review Required").Should().BeTrue();
+        wb.Worksheets.Any(w => w.Name == "Review Required").ShouldBeTrue();
 
         var shipments = wb.Worksheet("Shipments");
         // Row 1 = header, rows 2+ = data
-        shipments.RowsUsed().Count().Should().Be(3); // header + 2 above-threshold rows
+        shipments.RowsUsed().Count().ShouldBe(3); // header + 2 above-threshold rows
 
         var review = wb.Worksheet("Review Required");
         // Row 1 = header, row 2 = note, row 3+ = data
-        review.RowsUsed().Count().Should().Be(3); // header + note + 1 below-threshold row
+        review.RowsUsed().Count().ShouldBe(3); // header + note + 1 below-threshold row
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public sealed class ExcelExportServiceThresholdTests : IDisposable
         await svc.ExportAsync(results, _tempFile, confidenceThreshold: 0.60);
 
         using var wb = new XLWorkbook(_tempFile);
-        wb.Worksheets.Any(w => w.Name == "Review Required").Should().BeFalse();
+        wb.Worksheets.Any(w => w.Name == "Review Required").ShouldBeFalse();
     }
 
     [Fact]
@@ -85,8 +85,8 @@ public sealed class ExcelExportServiceThresholdTests : IDisposable
         await svc.ExportAsync(results, _tempFile, confidenceThreshold: 0.0);
 
         using var wb = new XLWorkbook(_tempFile);
-        wb.Worksheets.Any(w => w.Name == "Review Required").Should().BeFalse();
+        wb.Worksheets.Any(w => w.Name == "Review Required").ShouldBeFalse();
         var shipments = wb.Worksheet("Shipments");
-        shipments.RowsUsed().Count().Should().Be(4); // header + 3 data rows
+        shipments.RowsUsed().Count().ShouldBe(4); // header + 3 data rows
     }
 }

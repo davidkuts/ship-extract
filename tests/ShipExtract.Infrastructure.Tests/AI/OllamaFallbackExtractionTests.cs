@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
-using FluentAssertions;
+using Shouldly;
 using Moq;
 using ShipExtract.Domain.Interfaces;
 using ShipExtract.Infrastructure.AI;
@@ -63,11 +63,11 @@ public sealed class OllamaFallbackExtractionTests
 
         var result = await svc.ExtractAsync("some shipping document text");
 
-        result.Success.Should().BeTrue();
-        result.UsedFallbackExtraction.Should().BeTrue();
-        result.ConfidenceScore.Should().Be(0.30);
-        result.Record.Should().NotBeNull();
-        result.Record!.TrackingNumber.Should().Be("FALLBACK-001");
+        result.Success.ShouldBeTrue();
+        result.UsedFallbackExtraction.ShouldBeTrue();
+        result.ConfidenceScore.ShouldBe(0.30);
+        result.Record.ShouldNotBeNull();
+        result.Record!.TrackingNumber.ShouldBe("FALLBACK-001");
     }
 
     [Fact]
@@ -87,8 +87,8 @@ public sealed class OllamaFallbackExtractionTests
 
         var result = await svc.ExtractAsync("some shipping document text");
 
-        result.Success.Should().BeFalse();
-        result.UsedFallbackExtraction.Should().BeFalse();
+        result.Success.ShouldBeFalse();
+        result.UsedFallbackExtraction.ShouldBeFalse();
     }
 }
 

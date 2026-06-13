@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using ShipExtract.Infrastructure.TextProcessing;
 
 namespace ShipExtract.Infrastructure.Tests.TextProcessing;
@@ -13,9 +13,9 @@ public sealed class WhitespaceNormalizerTests
         var input  = "hello\0world";
         var result = _sut.Process(input);
 
-        result.Should().NotContain("\0");
-        result.Should().Contain("hello");
-        result.Should().Contain("world");
+        result.ShouldNotContain("\0");
+        result.ShouldContain("hello");
+        result.ShouldContain("world");
     }
 
     [Fact]
@@ -24,8 +24,8 @@ public sealed class WhitespaceNormalizerTests
         var input  = "hello\u00A0world";
         var result = _sut.Process(input);
 
-        result.Should().NotContain("\u00A0");
-        result.Should().Be("hello world");
+        result.ShouldNotContain("\u00A0");
+        result.ShouldBe("hello world");
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public sealed class WhitespaceNormalizerTests
 
         var result = _sut.Process(input);
 
-        result.Should().Be(expected);
+        result.ShouldBe(expected);
     }
 
     [Fact]
@@ -46,7 +46,7 @@ public sealed class WhitespaceNormalizerTests
 
         var result = _sut.Process(input);
 
-        result.Should().Be("hello\nworld");
+        result.ShouldBe("hello\nworld");
     }
 
     [Fact]
@@ -56,14 +56,14 @@ public sealed class WhitespaceNormalizerTests
 
         var result = _sut.Process(input);
 
-        result.Should().NotContain("\r");
-        result.Should().Be("line1\nline2\nline3");
+        result.ShouldNotContain("\r");
+        result.ShouldBe("line1\nline2\nline3");
     }
 
     [Fact]
     public void NeverReturnsNull()
     {
         var result = _sut.Process(string.Empty);
-        result.Should().NotBeNull();
+        result.ShouldNotBeNull();
     }
 }

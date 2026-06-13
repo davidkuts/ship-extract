@@ -6,6 +6,7 @@
         xmlns:views="clr-namespace:ShipExtract.UI.Views"
         xmlns:vm="clr-namespace:ShipExtract.UI.ViewModels"
         Title="{Binding WindowTitle, Mode=OneWay}"
+        Icon="pack://application:,,,/Assets/AppIcon.ico"
         MinWidth="900" MinHeight="600"
         Background="{StaticResource SurfaceBrush}"
         KeyDown="Window_KeyDown">

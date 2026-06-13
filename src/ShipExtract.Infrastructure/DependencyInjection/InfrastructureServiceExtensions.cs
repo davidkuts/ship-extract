@@ -128,7 +128,8 @@ public static class InfrastructureServiceExtensions
             new GitHubUpdateService(
                 sp.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(GitHubUpdateService)),
                 repoOwner: "davidkuts",
-                repoName:  "ship-extract"));
+                repoName:  "ship-extract",
+                logger:    sp.GetRequiredService<ILoggingService>()));
 
         return services;
     }

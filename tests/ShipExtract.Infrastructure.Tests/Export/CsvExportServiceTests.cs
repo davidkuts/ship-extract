@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using ShipExtract.Domain.Enums;
 using ShipExtract.Domain.Models;
 using ShipExtract.Infrastructure.Export;
@@ -43,8 +43,8 @@ public sealed class CsvExportServiceTests : IDisposable
             .Where(l => !string.IsNullOrWhiteSpace(l))
             .ToArray();
 
-        lines.Should().HaveCount(1);
-        lines[0].Should().Contain("Tracking Number");
+        lines.Length.ShouldBe(1);
+        lines[0].ShouldContain("Tracking Number");
     }
 
     [Fact]
@@ -57,8 +57,8 @@ public sealed class CsvExportServiceTests : IDisposable
             .Where(l => !string.IsNullOrWhiteSpace(l))
             .ToArray();
 
-        lines.Should().HaveCountGreaterThanOrEqualTo(2);
-        lines[1].Should().Contain("AWB12345");
+        lines.Length.ShouldBeGreaterThanOrEqualTo(2);
+        lines[1].ShouldContain("AWB12345");
     }
 
     [Fact]
@@ -72,6 +72,6 @@ public sealed class CsvExportServiceTests : IDisposable
             .ToArray();
 
         // Header + exactly 1 data row
-        lines.Should().HaveCount(2);
+        lines.Length.ShouldBe(2);
     }
 }

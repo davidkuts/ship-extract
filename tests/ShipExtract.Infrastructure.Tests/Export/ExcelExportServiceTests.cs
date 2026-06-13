@@ -1,5 +1,5 @@
 using ClosedXML.Excel;
-using FluentAssertions;
+using Shouldly;
 using ShipExtract.Domain.Enums;
 using ShipExtract.Domain.Models;
 using ShipExtract.Infrastructure.Export;
@@ -42,9 +42,9 @@ public sealed class ExcelExportServiceTests : IDisposable
         await svc.ExportAsync([MakeSucceeded(), MakeFailed()], _tempFile);
 
         using var wb = new XLWorkbook(_tempFile);
-        wb.Worksheets.Select(w => w.Name)
-          .Should().Contain("Shipments")
-          .And.Contain("Processing Log");
+        var sheetNames = wb.Worksheets.Select(w => w.Name).ToList();
+        sheetNames.ShouldContain("Shipments");
+        sheetNames.ShouldContain("Processing Log");
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class ExcelExportServiceTests : IDisposable
         await svc.ExportAsync([MakeSucceeded()], _tempFile);
 
         using var wb = new XLWorkbook(_tempFile);
-        wb.Worksheet("Shipments").Row(1).Style.Font.Bold.Should().BeTrue();
+        wb.Worksheet("Shipments").Row(1).Style.Font.Bold.ShouldBeTrue();
     }
 
     [Fact]
@@ -65,6 +65,6 @@ public sealed class ExcelExportServiceTests : IDisposable
 
         using var wb = new XLWorkbook(_tempFile);
         var log = wb.Worksheet("Processing Log");
-        log.RowsUsed().Count().Should().Be(3); // header + 2 data rows
+        log.RowsUsed().Count().ShouldBe(3); // header + 2 data rows
     }
 }

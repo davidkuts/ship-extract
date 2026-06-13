@@ -1,5 +1,5 @@
 using System.Text.Json;
-using FluentAssertions;
+using Shouldly;
 using ShipExtract.Domain.Enums;
 using ShipExtract.Domain.Models;
 using ShipExtract.Infrastructure.History;
@@ -30,8 +30,8 @@ public sealed class BatchHistoryServiceTests : IDisposable
         var indexPath  = Path.Combine(_dir, "index.json");
         var detailPath = Path.Combine(_dir, $"{job.Id:N}.json");
 
-        File.Exists(indexPath).Should().BeTrue("index.json must be created");
-        File.Exists(detailPath).Should().BeTrue("per-batch detail file must be created");
+        File.Exists(indexPath).ShouldBeTrue("index.json must be created");
+        File.Exists(detailPath).ShouldBeTrue("per-batch detail file must be created");
     }
 
     // ── 2 ───────────────────────────────────────────────────────────────────
@@ -47,9 +47,9 @@ public sealed class BatchHistoryServiceTests : IDisposable
 
         var entries = await sut.GetAllAsync();
 
-        entries.Should().HaveCount(2);
-        entries[0].BatchId.Should().Be(job2.Id, "newest batch should appear first");
-        entries[1].BatchId.Should().Be(job1.Id);
+        entries.Count.ShouldBe(2);
+        entries[0].BatchId.ShouldBe(job2.Id, "newest batch should appear first");
+        entries[1].BatchId.ShouldBe(job1.Id);
     }
 
     // ── 3 ───────────────────────────────────────────────────────────────────
@@ -64,11 +64,11 @@ public sealed class BatchHistoryServiceTests : IDisposable
         var all   = await sut.GetAllAsync();
         var entry = all.Single();
 
-        entry.BatchId.Should().Be(job.Id);
-        entry.TotalFiles.Should().Be(job.TotalFiles);
-        entry.SuccessCount.Should().Be(job.SuccessCount);
-        entry.FailureCount.Should().Be(job.FailureCount);
-        entry.TotalDurationSeconds.Should().BeGreaterThanOrEqualTo(0);
+        entry.BatchId.ShouldBe(job.Id);
+        entry.TotalFiles.ShouldBe(job.TotalFiles);
+        entry.SuccessCount.ShouldBe(job.SuccessCount);
+        entry.FailureCount.ShouldBe(job.FailureCount);
+        entry.TotalDurationSeconds.ShouldBeGreaterThanOrEqualTo(0);
     }
 
     // ── 4 ───────────────────────────────────────────────────────────────────
@@ -90,15 +90,15 @@ public sealed class BatchHistoryServiceTests : IDisposable
 
         var entries = await sut.GetAllAsync();
 
-        entries.Should().HaveCount(30, "history must be capped at 30");
-        entries.Select(e => e.BatchId).Should().NotContain(firstId,  "oldest entry must be removed");
-        entries.Select(e => e.BatchId).Should().NotContain(secondId, "second-oldest entry must be removed");
+        entries.Count.ShouldBe(30, "history must be capped at 30");
+        entries.Select(e => e.BatchId).ShouldNotContain(firstId);
+        entries.Select(e => e.BatchId).ShouldNotContain(secondId);
 
         // Detail files for trimmed entries must also be deleted
         var firstDetail  = Path.Combine(_dir, $"{firstId:N}.json");
         var secondDetail = Path.Combine(_dir, $"{secondId:N}.json");
-        File.Exists(firstDetail).Should().BeFalse("trimmed detail file must be deleted");
-        File.Exists(secondDetail).Should().BeFalse("trimmed detail file must be deleted");
+        File.Exists(firstDetail).ShouldBeFalse("trimmed detail file must be deleted");
+        File.Exists(secondDetail).ShouldBeFalse("trimmed detail file must be deleted");
     }
 
     // ── 5 ───────────────────────────────────────────────────────────────────
@@ -114,8 +114,8 @@ public sealed class BatchHistoryServiceTests : IDisposable
         var entries    = await sut.GetAllAsync();
         var detailPath = Path.Combine(_dir, $"{job.Id:N}.json");
 
-        entries.Should().BeEmpty();
-        File.Exists(detailPath).Should().BeFalse();
+        entries.ShouldBeEmpty();
+        File.Exists(detailPath).ShouldBeFalse();
     }
 
     // ── 6 ───────────────────────────────────────────────────────────────────
@@ -131,9 +131,9 @@ public sealed class BatchHistoryServiceTests : IDisposable
         await sut.ClearAllAsync();
 
         var entries = await sut.GetAllAsync();
-        entries.Should().BeEmpty();
-        File.Exists(Path.Combine(_dir, $"{job1.Id:N}.json")).Should().BeFalse();
-        File.Exists(Path.Combine(_dir, $"{job2.Id:N}.json")).Should().BeFalse();
+        entries.ShouldBeEmpty();
+        File.Exists(Path.Combine(_dir, $"{job1.Id:N}.json")).ShouldBeFalse();
+        File.Exists(Path.Combine(_dir, $"{job2.Id:N}.json")).ShouldBeFalse();
     }
 
     // ── 7 ───────────────────────────────────────────────────────────────────
@@ -149,7 +149,7 @@ public sealed class BatchHistoryServiceTests : IDisposable
 
         var primary = BatchHistoryService.ComputePrimaryCarrier(results);
 
-        primary.Should().Be(CarrierType.DHL);
+        primary.ShouldBe(CarrierType.DHL);
     }
 
     // ── 8 ───────────────────────────────────────────────────────────────────
@@ -164,7 +164,7 @@ public sealed class BatchHistoryServiceTests : IDisposable
 
         var primary = BatchHistoryService.ComputePrimaryCarrier(results);
 
-        primary.Should().Be(CarrierType.Unknown);
+        primary.ShouldBe(CarrierType.Unknown);
     }
 
     // ── 9 ───────────────────────────────────────────────────────────────────
@@ -177,7 +177,7 @@ public sealed class BatchHistoryServiceTests : IDisposable
         var sut     = Sut();
         var entries = await sut.GetAllAsync();
 
-        entries.Should().BeEmpty("corrupt index must be treated as empty");
+        entries.ShouldBeEmpty("corrupt index must be treated as empty");
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

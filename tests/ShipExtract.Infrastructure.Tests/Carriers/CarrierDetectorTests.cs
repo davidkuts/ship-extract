@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using ShipExtract.Domain.Enums;
 using ShipExtract.Infrastructure.Carriers;
 
@@ -13,7 +13,7 @@ public sealed class CarrierDetectorTests
     {
         var result = _sut.Detect("DHL Express Waybill No. 1234567890");
 
-        result.Should().Be(CarrierType.DHL);
+        result.ShouldBe(CarrierType.DHL);
     }
 
     [Fact]
@@ -21,7 +21,7 @@ public sealed class CarrierDetectorTests
     {
         var result = _sut.Detect("Air Waybill No. / Tracking No.: SHP-2024-06-A");
 
-        result.Should().Be(CarrierType.FedEx);
+        result.ShouldBe(CarrierType.FedEx);
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public sealed class CarrierDetectorTests
     {
         var result = _sut.Detect("Tracking: 1Z999AA10123456784 UPS Supply Chain");
 
-        result.Should().Be(CarrierType.UPS);
+        result.ShouldBe(CarrierType.UPS);
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public sealed class CarrierDetectorTests
     {
         var result = _sut.Detect("UPS Supply Chain Solutions\nShip From:");
 
-        result.Should().Be(CarrierType.UPS);
+        result.ShouldBe(CarrierType.UPS);
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public sealed class CarrierDetectorTests
     {
         var result = _sut.Detect("Invoice Number: 12345\nShipper: Acme Corp");
 
-        result.Should().Be(CarrierType.Unknown);
+        result.ShouldBe(CarrierType.Unknown);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class CarrierDetectorTests
     {
         var result = _sut.Detect("FEDEX INTERNATIONAL PRIORITY");
 
-        result.Should().Be(CarrierType.FedEx);
+        result.ShouldBe(CarrierType.FedEx);
     }
 
     [Fact]
@@ -61,6 +61,6 @@ public sealed class CarrierDetectorTests
     {
         var result = _sut.Detect("DHL Waybill - shipper details below");
 
-        result.Should().Be(CarrierType.DHL);
+        result.ShouldBe(CarrierType.DHL);
     }
 }
