@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using ShipExtract.Domain.Models;
 using ShipExtract.Domain.Validators;
 
@@ -21,8 +21,8 @@ public sealed class ShipmentRecordValidatorTests
 
         var result = ShipmentRecordValidator.Validate(record);
 
-        result.IsValid.Should().BeTrue();
-        result.Errors.Should().BeEmpty();
+        result.IsValid.ShouldBeTrue();
+        result.Errors.ShouldBeEmpty();
     }
 
     [Fact]
@@ -35,10 +35,10 @@ public sealed class ShipmentRecordValidatorTests
 
         var result = ShipmentRecordValidator.Validate(record);
 
-        result.IsValid.Should().BeTrue();
-        result.Errors.Should().BeEmpty();
-        result.HasWarnings.Should().BeTrue();
-        result.Warnings.Should().ContainMatch("*TrackingNumber*");
+        result.IsValid.ShouldBeTrue();
+        result.Errors.ShouldBeEmpty();
+        result.HasWarnings.ShouldBeTrue();
+        result.Warnings.ShouldContain(w => w.Contains("TrackingNumber"));
     }
 
     [Fact]
@@ -49,8 +49,8 @@ public sealed class ShipmentRecordValidatorTests
 
         var result = ShipmentRecordValidator.Validate(record);
 
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().ContainMatch("*GrossWeightKg*");
+        result.IsValid.ShouldBeFalse();
+        result.Errors.ShouldContain(e => e.Contains("GrossWeightKg"));
     }
 
     [Fact]
@@ -61,8 +61,8 @@ public sealed class ShipmentRecordValidatorTests
 
         var result = ShipmentRecordValidator.Validate(record);
 
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().ContainMatch("*DeclaredValue*");
+        result.IsValid.ShouldBeFalse();
+        result.Errors.ShouldContain(e => e.Contains("DeclaredValue"));
     }
 
     [Fact]
@@ -74,8 +74,8 @@ public sealed class ShipmentRecordValidatorTests
 
         var result = ShipmentRecordValidator.Validate(record);
 
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().ContainMatch("*EstimatedDeliveryDate*");
+        result.IsValid.ShouldBeFalse();
+        result.Errors.ShouldContain(e => e.Contains("EstimatedDeliveryDate"));
     }
 
     [Fact]
@@ -86,8 +86,8 @@ public sealed class ShipmentRecordValidatorTests
 
         var result = ShipmentRecordValidator.Validate(record);
 
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().ContainMatch("*ConfidenceScore*");
+        result.IsValid.ShouldBeFalse();
+        result.Errors.ShouldContain(e => e.Contains("ConfidenceScore"));
     }
 
     [Fact]
@@ -98,6 +98,6 @@ public sealed class ShipmentRecordValidatorTests
 
         var result = ShipmentRecordValidator.Validate(record);
 
-        result.IsValid.Should().BeTrue();
+        result.IsValid.ShouldBeTrue();
     }
 }

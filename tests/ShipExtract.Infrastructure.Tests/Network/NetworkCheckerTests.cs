@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http;
-using FluentAssertions;
+using Shouldly;
 using ShipExtract.Infrastructure.Network;
 
 namespace ShipExtract.Infrastructure.Tests.Network;
@@ -17,7 +17,7 @@ public sealed class NetworkCheckerTests
 
         var result = await checker.IsAnthropicReachableAsync();
 
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public sealed class NetworkCheckerTests
 
         var result = await checker.IsAnthropicReachableAsync();
 
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 }
 

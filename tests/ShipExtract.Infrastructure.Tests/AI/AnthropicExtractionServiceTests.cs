@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using Moq;
 using ShipExtract.Domain.Enums;
 using ShipExtract.Domain.Interfaces;
@@ -35,8 +35,8 @@ public sealed class AnthropicExtractionServiceTests
         var result = await sut.ExtractAsync("some document text", DocumentType.Unknown);
 
         // Assert
-        result.Success.Should().BeFalse();
-        result.Record.Should().BeNull();
+        result.Success.ShouldBeFalse();
+        result.Record.ShouldBeNull();
         // The service must not throw — reaching this line confirms it
     }
 }

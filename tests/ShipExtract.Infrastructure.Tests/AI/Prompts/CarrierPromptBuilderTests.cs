@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using ShipExtract.Domain.Enums;
 using ShipExtract.Infrastructure.AI;
 
@@ -11,7 +11,7 @@ public sealed class CarrierPromptBuilderTests
     {
         var hints = CarrierPromptBuilder.GetCarrierHints(CarrierType.DHL);
 
-        hints.Should().Contain("Waybill");
+        hints.ShouldContain("Waybill");
     }
 
     [Fact]
@@ -19,7 +19,7 @@ public sealed class CarrierPromptBuilderTests
     {
         var hints = CarrierPromptBuilder.GetCarrierHints(CarrierType.FedEx);
 
-        hints.Should().Contain("Contact Name");
+        hints.ShouldContain("Contact Name");
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public sealed class CarrierPromptBuilderTests
     {
         var hints = CarrierPromptBuilder.GetCarrierHints(CarrierType.UPS);
 
-        hints.Should().Contain("1Z");
+        hints.ShouldContain("1Z");
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public sealed class CarrierPromptBuilderTests
     {
         var hints = CarrierPromptBuilder.GetCarrierHints(CarrierType.Unknown);
 
-        hints.Should().BeEmpty();
+        hints.ShouldBeEmpty();
     }
 
     [Fact]
@@ -43,6 +43,6 @@ public sealed class CarrierPromptBuilderTests
     {
         var hints = CarrierPromptBuilder.GetCarrierHints(CarrierType.Generic);
 
-        hints.Should().BeEmpty();
+        hints.ShouldBeEmpty();
     }
 }

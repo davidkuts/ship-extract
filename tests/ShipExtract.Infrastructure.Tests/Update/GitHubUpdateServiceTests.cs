@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http;
-using FluentAssertions;
+using Shouldly;
 using ShipExtract.Infrastructure.Update;
 
 namespace ShipExtract.Infrastructure.Tests.Update;
@@ -26,10 +26,10 @@ public sealed class GitHubUpdateServiceTests
         var sut    = CreateService(OkJson(json));
         var result = await sut.CheckForUpdateAsync();
 
-        result.Should().NotBeNull();
-        result!.IsUpdateAvailable.Should().BeTrue();
-        result.LatestVersion.Should().Be(new Version(99, 0, 0));
-        result.DownloadUrl.Should().Be("https://example.com/download");
+        result.ShouldNotBeNull();
+        result!.IsUpdateAvailable.ShouldBeTrue();
+        result.LatestVersion.ShouldBe(new Version(99, 0, 0));
+        result.DownloadUrl.ShouldBe("https://example.com/download");
     }
 
     [Fact]
@@ -47,8 +47,8 @@ public sealed class GitHubUpdateServiceTests
         var sut    = CreateService(OkJson(json));
         var result = await sut.CheckForUpdateAsync();
 
-        result.Should().NotBeNull();
-        result!.IsUpdateAvailable.Should().BeFalse();
+        result.ShouldNotBeNull();
+        result!.IsUpdateAvailable.ShouldBeFalse();
     }
 
     [Fact]
@@ -61,8 +61,8 @@ public sealed class GitHubUpdateServiceTests
         var sut    = CreateService(OkJson(json));
         var result = await sut.CheckForUpdateAsync();
 
-        result.Should().NotBeNull();
-        result!.IsUpdateAvailable.Should().BeFalse();
+        result.ShouldNotBeNull();
+        result!.IsUpdateAvailable.ShouldBeFalse();
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class GitHubUpdateServiceTests
 
         var result = await sut.CheckForUpdateAsync();
 
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public sealed class GitHubUpdateServiceTests
         var sut    = CreateService(OkJson("not-json-at-all!!!"));
         var result = await sut.CheckForUpdateAsync();
 
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────

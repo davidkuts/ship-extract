@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using ShipExtract.Domain.Models;
 using ShipExtract.Infrastructure.AI;
 
@@ -12,7 +12,7 @@ public sealed class CustomFieldsPromptTests
     {
         var result = ExtractionPromptBuilder.BuildCustomFieldsSection(null);
 
-        result.Should().BeEmpty();
+        result.ShouldBeEmpty();
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class CustomFieldsPromptTests
 
         var result = ExtractionPromptBuilder.BuildCustomFieldsSection(fields);
 
-        result.Should().BeEmpty();
+        result.ShouldBeEmpty();
     }
 
     [Fact]
@@ -44,8 +44,8 @@ public sealed class CustomFieldsPromptTests
 
         var result = ExtractionPromptBuilder.BuildCustomFieldsSection(fields);
 
-        result.Should().Contain("PO Number");
-        result.Should().Contain("customFields");
+        result.ShouldContain("PO Number");
+        result.ShouldContain("customFields");
     }
 
     [Fact]
@@ -60,8 +60,8 @@ public sealed class CustomFieldsPromptTests
 
         var result = ExtractionPromptBuilder.BuildCustomFieldsSection(fields);
 
-        result.Should().Contain("PO Number");
-        result.Should().Contain("Invoice Number");
-        result.Should().NotContain("Incoterms"); // disabled
+        result.ShouldContain("PO Number");
+        result.ShouldContain("Invoice Number");
+        result.ShouldNotContain("Incoterms"); // disabled
     }
 }

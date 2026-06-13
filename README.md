@@ -1,57 +1,79 @@
 # ShipExtract
 
-ShipExtract is a Windows desktop application that uses Claude AI to automatically extract structured shipment data from PDF documents — air waybills, bills of lading, commercial invoices, packing lists, and courier labels — and export the results to CSV or Excel.
+**Convert shipping PDFs to structured Excel data — instantly.**
 
-## Requirements
+ShipExtract uses AI to extract tracking numbers, addresses, weights, and customs
+data from any shipping document. Works offline with Ollama or with Anthropic
+Claude for maximum accuracy.
 
-- Windows 10/11 x64
-- [Anthropic API key](https://console.anthropic.com) (free tier works)
-- Optional: Tesseract `eng.traineddata` for scanned (image-based) PDF support
+## Features
 
-## Setup
+- Drag-and-drop batch processing
+- Supports DHL, FedEx, UPS, TNT, DPD, GLS and more
+- Export to Excel and CSV with confidence scoring
+- Free with Ollama (local AI) — no API key needed
+- Optional: Anthropic Claude for higher accuracy (~$0.002/doc)
+- OCR support for scanned PDFs (English, German, French)
+- Batch history — reload and re-export previous sessions
+- Custom extraction fields for your internal ERP format
 
-1. Run `ShipExtract.UI.exe`
-2. On first launch, enter your Anthropic API key when prompted
-   (get one free at [console.anthropic.com](https://console.anthropic.com))
-3. **Optional OCR setup** — to process scanned PDFs:
-   - Download [eng.traineddata](https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata)
-   - Place the file in `%APPDATA%\ShipExtract\tessdata\`
-   - Restart ShipExtract
+## System Requirements
 
-## Usage
+- Windows 10/11 (x64)
+- 8 GB RAM recommended (16 GB for Ollama)
+- Internet connection (optional — only needed for Claude AI)
 
-1. **Drag and drop** PDF files onto the drop zone (or click to browse)
-2. Set an **output folder** for exports
-3. Click **Process Files** — each file is extracted concurrently
-4. Click a completed item to **preview extracted fields**
-5. Click **Export CSV** or **Export Excel** to save results
+## Quick Start
 
-## Architecture
+1. Download ShipExtract from [Gumroad link]
+2. Run `ShipExtract.UI.exe`
+3. On first launch: choose Ollama (free) or Anthropic
+4. Drop your PDFs onto the queue
+5. Click **Process** → **Export Excel**
 
-ShipExtract follows a clean four-layer architecture:
+## Getting Started with Ollama (Free)
 
-| Project | Layer | Responsibility |
-|---|---|---|
-| `ShipExtract.Domain` | Domain | Entities, interfaces, enums, validators |
-| `ShipExtract.Application` | Application | Orchestration (ExtractionPipeline, BatchProcessingService) |
-| `ShipExtract.Infrastructure` | Infrastructure | PDF parsing (PdfPig), OCR (Tesseract), AI (Anthropic SDK), export (CsvHelper, ClosedXML) |
-| `ShipExtract.UI` | Presentation | WPF MVVM UI (CommunityToolkit.Mvvm) |
+1. Download Ollama from https://ollama.com
+2. Run: `ollama pull mistral`
+3. ShipExtract will detect it automatically
+
+## Getting Started with Anthropic Claude
+
+1. Get an API key from https://console.anthropic.com
+   (minimum $5 credit, ~$0.002 per document)
+2. Enter your key in ShipExtract Settings
 
 ## Building from Source
 
-```bash
-git clone <repo-url>
+Prerequisites: .NET 8 SDK, Git
+
+```
+git clone https://github.com/davidkuts/ship-extract.git
 cd ship-extract
 dotnet build ShipExtract.sln
 dotnet test
-.\publish.ps1
+dotnet run --project src/ShipExtract.UI/ShipExtract.UI.csproj
 ```
+
+## Release Build
+
+```
+.\publish.ps1 -Target Gumroad -Version 1.0.0
+```
+
+## Architecture
+
+Four-layer clean architecture:
+- **Domain**: models, interfaces, business rules
+- **Application**: orchestration, batch processing pipeline
+- **Infrastructure**: PDF parsing, OCR, AI providers, exports
+- **UI**: WPF MVVM with CommunityToolkit.Mvvm
+
+## License
+
+[Your chosen license]
 
 ## Acknowledgements
 
-- [Claude AI](https://anthropic.com) — AI-powered data extraction
-- [PdfPig](https://github.com/UglyToad/PdfPig) — PDF text extraction
-- [Tesseract](https://github.com/charlesw/tesseract) — OCR engine
-- [ClosedXML](https://github.com/ClosedXML/ClosedXML) — Excel export
-- [CsvHelper](https://joshclose.github.io/CsvHelper/) — CSV export
-- [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) — MVVM framework
+Built with: PdfPig, Tesseract, ClosedXML, CsvHelper,
+Serilog, CommunityToolkit.Mvvm, Anthropic.SDK

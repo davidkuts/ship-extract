@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using ShipExtract.Infrastructure.TextProcessing;
 
 namespace ShipExtract.Infrastructure.Tests.TextProcessing;
@@ -12,7 +12,7 @@ public sealed class SpacedCharacterNormalizerTests
     {
         var result = _sut.Process("P K G - 0 0 1");
 
-        result.Should().Be("PKG-001");
+        result.ShouldBe("PKG-001");
     }
 
     [Fact]
@@ -20,7 +20,7 @@ public sealed class SpacedCharacterNormalizerTests
     {
         var result = _sut.Process("1 2 3 4 5 6 7 8");
 
-        result.Should().Be("12345678");
+        result.ShouldBe("12345678");
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public sealed class SpacedCharacterNormalizerTests
     {
         var result = _sut.Process("TechParts GmbH");
 
-        result.Should().Be("TechParts GmbH");
+        result.ShouldBe("TechParts GmbH");
     }
 
     [Fact]
@@ -36,6 +36,6 @@ public sealed class SpacedCharacterNormalizerTests
     {
         var result = _sut.Process("Ship to Munich");
 
-        result.Should().Be("Ship to Munich");
+        result.ShouldBe("Ship to Munich");
     }
 }

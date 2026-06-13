@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using ShipExtract.Domain.Enums;
 using ShipExtract.Infrastructure.Errors;
 
@@ -13,8 +13,7 @@ public sealed class UserFacingMessagesTests
         foreach (var code in Enum.GetValues<ExtractionErrorCode>())
         {
             UserFacingMessages.GetMessage(code)
-                .Should().NotBeNullOrWhiteSpace(
-                    because: $"every error code must have a user-facing message (missing: {code})");
+                .ShouldNotBeNullOrWhiteSpace();
         }
     }
 
@@ -22,6 +21,6 @@ public sealed class UserFacingMessagesTests
     public void GetMessage_PdfReadFailure_ContainsPdf()
     {
         var msg = UserFacingMessages.GetMessage(ExtractionErrorCode.PdfReadFailure);
-        msg.Should().ContainEquivalentOf("PDF");
+        msg.ToUpperInvariant().ShouldContain("PDF");
     }
 }

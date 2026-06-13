@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using Moq;
 using ShipExtract.Domain.Interfaces;
 using ShipExtract.Infrastructure.AI;
@@ -42,7 +42,7 @@ public sealed class AiExtractionServiceFactoryTests
     {
         var factory = CreateFactory(AiProvider.Anthropic);
         var svc     = factory.GetService();
-        svc.Should().BeOfType<AnthropicExtractionService>();
+        svc.ShouldBeOfType<AnthropicExtractionService>();
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class AiExtractionServiceFactoryTests
     {
         var factory = CreateFactory(AiProvider.Ollama);
         var svc     = factory.GetService();
-        svc.Should().BeOfType<OllamaExtractionService>();
+        svc.ShouldBeOfType<OllamaExtractionService>();
     }
 
     [Fact]
@@ -58,6 +58,6 @@ public sealed class AiExtractionServiceFactoryTests
     {
         var factory = CreateFactory(AiProvider.Anthropic); // default Anthropic
         var svc     = factory.GetService(AiProvider.Ollama);
-        svc.Should().BeOfType<OllamaExtractionService>();
+        svc.ShouldBeOfType<OllamaExtractionService>();
     }
 }

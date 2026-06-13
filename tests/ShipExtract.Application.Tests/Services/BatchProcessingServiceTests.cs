@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using Moq;
 using ShipExtract.Application.Pipelines;
 using ShipExtract.Application.Services;
@@ -28,11 +28,11 @@ public sealed class BatchProcessingServiceTests
         var service = CreateService();
         var job = await service.ProcessBatchAsync([]);
 
-        job.Status.Should().Be(BatchStatus.Completed);
-        job.TotalFiles.Should().Be(0);
-        job.Results.Should().BeEmpty();
-        job.SuccessCount.Should().Be(0);
-        job.FailureCount.Should().Be(0);
+        job.Status.ShouldBe(BatchStatus.Completed);
+        job.TotalFiles.ShouldBe(0);
+        job.Results.ShouldBeEmpty();
+        job.SuccessCount.ShouldBe(0);
+        job.FailureCount.ShouldBe(0);
     }
 
     [Fact]
@@ -49,11 +49,11 @@ public sealed class BatchProcessingServiceTests
             var service = CreateService();
             var job = await service.ProcessBatchAsync([pdfFile]);
 
-            job.Status.Should().Be(BatchStatus.Completed);
-            job.ProcessedFiles.Should().Be(1);
-            job.SuccessCount.Should().Be(1);
-            job.FailureCount.Should().Be(0);
-            job.Results.Should().HaveCount(1);
+            job.Status.ShouldBe(BatchStatus.Completed);
+            job.ProcessedFiles.ShouldBe(1);
+            job.SuccessCount.ShouldBe(1);
+            job.FailureCount.ShouldBe(0);
+            job.Results.Count.ShouldBe(1);
         }
         finally
         {
@@ -76,11 +76,11 @@ public sealed class BatchProcessingServiceTests
             // "bad.pdf" does not exist → will fail
             var job = await service.ProcessBatchAsync([pdfFile, @"C:\nonexistent\bad.pdf"]);
 
-            job.Status.Should().Be(BatchStatus.Completed);
-            job.ProcessedFiles.Should().Be(2);
-            job.SuccessCount.Should().Be(1);
-            job.FailureCount.Should().Be(1);
-            job.Results.Should().HaveCount(2);
+            job.Status.ShouldBe(BatchStatus.Completed);
+            job.ProcessedFiles.ShouldBe(2);
+            job.SuccessCount.ShouldBe(1);
+            job.FailureCount.ShouldBe(1);
+            job.Results.Count.ShouldBe(2);
         }
         finally
         {
@@ -102,7 +102,7 @@ public sealed class BatchProcessingServiceTests
             [@"C:\nonexistent\file1.pdf", @"C:\nonexistent\file2.pdf"],
             ct: cts.Token);
 
-        job.Status.Should().Be(BatchStatus.Cancelled);
+        job.Status.ShouldBe(BatchStatus.Cancelled);
     }
 
     private void SetupSuccessfulPipeline(string pdfFile)

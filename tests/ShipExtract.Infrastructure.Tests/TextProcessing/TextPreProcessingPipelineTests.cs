@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using Moq;
 using ShipExtract.Domain.Interfaces;
 using ShipExtract.Infrastructure.TextProcessing;
@@ -40,7 +40,7 @@ public sealed class TextPreProcessingPipelineTests
         proc1.Verify(p => p.Process("original"), Times.Once);
         proc2.Verify(p => p.Process("step1"),    Times.Once);
         proc3.Verify(p => p.Process("step2"),    Times.Once);
-        cleaned.Should().Be("step3");
+        cleaned.ShouldBe("step3");
     }
 
     [Fact]
@@ -63,9 +63,9 @@ public sealed class TextPreProcessingPipelineTests
         var (_, report) = pipeline.Process(input);
 
         // Assert
-        report.CharactersRemoved.Should().BeGreaterThan(0);
-        report.ReductionPercent.Should().BeGreaterThan(0);
-        report.StepsApplied.Should().NotBeEmpty();
+        report.CharactersRemoved.ShouldBeGreaterThan(0);
+        report.ReductionPercent.ShouldBeGreaterThan(0);
+        report.StepsApplied.ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -81,9 +81,9 @@ public sealed class TextPreProcessingPipelineTests
         var (cleaned, report) = pipeline.Process(input);
 
         // Assert
-        cleaned.Should().NotBeNull();
-        report.Should().NotBeNull();
-        report.OriginalCharacterCount.Should().Be(100);
+        cleaned.ShouldNotBeNull();
+        report.ShouldNotBeNull();
+        report.OriginalCharacterCount.ShouldBe(100);
     }
 
     [Fact]
@@ -97,8 +97,8 @@ public sealed class TextPreProcessingPipelineTests
 
         var (_, report) = pipeline.Process("unchanged text");
 
-        report.CleanedText.Should().BeNull("CleanedText should be null when no chars were removed");
-        report.CharactersRemoved.Should().Be(0);
+        report.CleanedText.ShouldBeNull("CleanedText should be null when no chars were removed");
+        report.CharactersRemoved.ShouldBe(0);
     }
 
     [Fact]
@@ -110,8 +110,8 @@ public sealed class TextPreProcessingPipelineTests
 
         var (cleaned, report) = pipeline.Process("data SELECT DOWN ARROW FOR OPTIONS more data");
 
-        report.CleanedText.Should().NotBeNull();
-        report.CleanedText.Should().Be(cleaned);
-        report.CharactersRemoved.Should().BeGreaterThan(0);
+        report.CleanedText.ShouldNotBeNull();
+        report.CleanedText.ShouldBe(cleaned);
+        report.CharactersRemoved.ShouldBeGreaterThan(0);
     }
 }

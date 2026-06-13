@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using ShipExtract.Infrastructure.Ocr;
 
 namespace ShipExtract.Infrastructure.Tests.Ocr;
@@ -26,8 +26,8 @@ public sealed class OcrLanguageCheckerTests : IDisposable
 
         var status = OcrLanguageChecker.Check(_tempDir, new List<string> { "eng" });
 
-        status.AvailableLanguages.Should().Contain("eng");
-        status.MissingLanguages.Should().NotContain("eng");
+        status.AvailableLanguages.ShouldContain("eng");
+        status.MissingLanguages.ShouldNotContain("eng");
     }
 
     [Fact]
@@ -36,8 +36,8 @@ public sealed class OcrLanguageCheckerTests : IDisposable
         // tempDir is empty — no .traineddata files
         var status = OcrLanguageChecker.Check(_tempDir, new List<string> { "eng" });
 
-        status.MissingLanguages.Should().Contain("eng");
-        status.AvailableLanguages.Should().NotContain("eng");
+        status.MissingLanguages.ShouldContain("eng");
+        status.AvailableLanguages.ShouldNotContain("eng");
     }
 
     [Fact]
@@ -45,8 +45,8 @@ public sealed class OcrLanguageCheckerTests : IDisposable
     {
         var status = OcrLanguageChecker.Check(_tempDir, new List<string> { "eng", "deu", "fra" });
 
-        status.DownloadUrls.Should().ContainKey("eng");
-        status.DownloadUrls.Should().ContainKey("deu");
-        status.DownloadUrls.Should().ContainKey("fra");
+        status.DownloadUrls.ShouldContainKey("eng");
+        status.DownloadUrls.ShouldContainKey("deu");
+        status.DownloadUrls.ShouldContainKey("fra");
     }
 }
